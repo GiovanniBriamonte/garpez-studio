@@ -81,5 +81,5 @@ Import the repository on Vercel: it is a standard Next.js project, no settings n
 
 - **Fonts:** Archivo Black, VT323, Doto and Fredoka load from Google Fonts. Doto stands in for OffBit and Fredoka for Frankfurter: buy those licences and swap them in `src/template.html`.
 - **Scratches:** the scratch texture in `blender/assets/` is Fab "Scratched Polypropylene Plastic".
-- **London clip:** check the licence of `site/city.mp4` (the stock clip) before going live.
+- **London clip:** check the licence of `public/tv/city.mp4` (the stock clip) before going live.
 - **Search engines:** all the channel text is drawn in a canvas, so search engines and social previews see none of it. Before launch add a page title, description, a share image and a hidden text version.
