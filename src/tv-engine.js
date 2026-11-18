@@ -1,120 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<base href="/tv/">   <!-- the page is served at / but its files live in public/tv/ -->
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>garpez.tv</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Doto:wght@900&family=Fredoka:wght@600;700&family=VT323&display=swap" rel="stylesheet">
-<style>
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    background: linear-gradient({{TOP}} 50%, {{BOTTOM}} 50%); overflow: hidden;
-    -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
-  }
-  .wrap { position: fixed; inset: 0; }
-  .backdrop, .stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-  .stage { --w: min(max(100vw, 177.78vh), 206vh, 200vw); width: var(--w); height: calc(var(--w) * .5625); }
-  .backdrop { width: 100vw; height: calc(min(max(100vw, 177.78vh), 206vh, 200vw) * .5625); background: linear-gradient({{COLUMN}}); }
-  #base, canvas.spill { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .feather { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 3%, #000 97%, transparent 100%);
-                     mask-image: linear-gradient(90deg, transparent 0, #000 3%, #000 97%, transparent 100%); }
-  .spill { mix-blend-mode: screen; pointer-events: none; }
+import { createAudio } from './audio.js';
+import geo from './tv-geometry.json';
 
-  /* the channel is added on top of the black tube, so the glass reflections stay in front */
-  .screen {
-    position: absolute; left: {{SX}}%; top: {{SY}}%; width: {{SW}}%; height: {{SH}}%;
-    -webkit-mask: url(screenmask.png) center / 100% 100% no-repeat; mask: url(screenmask.png) center / 100% 100% no-repeat;
-    mix-blend-mode: screen; isolation: isolate; background: #000; touch-action: pan-y;
-  }
-  .tube { position: absolute; inset: 0; transform-origin: 50% 50%; visibility: hidden; }
-  canvas#c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: blur(.6px) contrast(1.04) saturate(1.3) brightness(1.1); }
-  canvas#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
-  /* tube effect on (WebGL): the shader draws the picture, curved, with glow, colour fringing, scanlines and phosphors */
-  .tube.gl canvas#gl { display: block; }
-  .tube.gl canvas#c { visibility: hidden; }
-  .tube.gl .crt::before { display: none; }
-  .crt { position: absolute; inset: 0; pointer-events: none; }
-  .crt::before {
-    content: ""; position: absolute; inset: 0; mix-blend-mode: multiply;
-    background:
-      repeating-linear-gradient(90deg, rgba(0,0,0,.11) 0 1px, rgba(0,0,0,0) 1px 3px),
-      repeating-linear-gradient(90deg, rgba(255,70,70,.06) 0 1px, rgba(70,255,70,.06) 1px 2px, rgba(70,70,255,.06) 2px 3px),
-      repeating-linear-gradient(0deg, rgba(0,0,0,.1) 0 1px, rgba(0,0,0,0) 1px 3px);
-  }
-  .crt::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 60%, rgba(0,0,0,.26) 100%); }
+const SPRITE = geo.sprite;
 
-  /* keys: each one has its own hit area and its own "pressed" render */
-  .btn { position: absolute; width: {{BW}}%; height: {{BH}}%; transform: translate(-50%, -50%);
-    border: 0; padding: 0; background: transparent; cursor: pointer; outline: none; }
-  .btn:focus-visible { outline: 1px solid rgba(255,255,255,.5); outline-offset: -3px; }
-  .pressed { position: absolute; pointer-events: none; display: none; }
-  .shade { position: absolute; width: {{CW}}%; height: {{CHH}}%; transform: translate(-50%, -50%); pointer-events: none; display: none;
-    border-radius: 11%; background: rgba(0,0,0,.2);
-    box-shadow: inset 0 calc(var(--w) * .0022) calc(var(--w) * .0032) rgba(0,0,0,.6), inset 0 0 calc(var(--w) * .0014) rgba(0,0,0,.5); }
-  .pressed.show, .shade.show { display: block; }
+function family(variable, fallback) {
+  const stack = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+  return stack || fallback;
+}
 
-  .remote { display: none; position: fixed; left: 50%; bottom: calc(40px + env(safe-area-inset-bottom));
-    transform: translateX(-50%); gap: 10px; padding: 10px; background: #2b2c2e; border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08); }
-  .remote button { width: 64px; height: 52px; border: 0; border-radius: 6px; cursor: pointer;
-    font: 600 11px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .06em;
-    box-shadow: inset 0 -4px 0 rgba(0,0,0,.35), 0 2px 0 #111; }
-  .remote button:active { transform: translateY(2px); box-shadow: inset 0 -1px 0 rgba(0,0,0,.35); }
-  .r-info { background: #8d8d8b; color: #1b1b1b; } .r-ch { background: #1d1d1f; color: #ccc; } .r-pw { background: #f2b51a; color: #2a2000; }
-  @media (pointer: coarse) { .remote { display: flex; } }
-
-  .copy { position: fixed; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom)); text-align: center;
-    font: 900 13px/1 "Doto", "VT323", ui-monospace, monospace; letter-spacing: .12em; color: #1b1b1b; pointer-events: none; }
-
-  /* ---------- info channel (HTML on top of the canvas, so the links are real) ---------- */
-  .infoch { position: absolute; inset: 0; padding: 6% 7% 9%; display: none; flex-direction: column; justify-content: space-between;
-    color: #fff; font-family: Frankfurter, "Frankfurter Std", "Fredoka", "Arial Rounded MT Bold", sans-serif; font-weight: 700;
-    text-transform: uppercase; font-size: calc(var(--w) * .0178); line-height: 1.08; letter-spacing: .01em;
-    text-shadow: .05em 0 0 rgba(255,0,200,.5), -.05em 0 0 rgba(0,255,220,.4); }
-  .infoch.show { display: flex; }
-  .infoch p { margin: 0; }
-  .infoch a, .infoch span.l { display: block; color: #fff; text-decoration: none; }
-  .infoch a:hover, .infoch a:focus-visible { color: #f2c21c; outline: none; }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="backdrop"></div>
-  <main class="stage" id="tv">
-    <img id="base" class="feather" src="dark.webp" alt="garpez.tv television set">
-    <canvas class="spill" id="spill" width="1600" height="900"></canvas>
-    <div class="screen" id="screen">
-      <div class="tube" id="tube">
-        <canvas id="c" width="400" height="{{CH}}" aria-label="TV screen"></canvas>
-        <canvas id="gl" aria-hidden="true"></canvas>
-        <video id="v_work" src="work.mp4" muted loop playsinline preload="auto" style="display:none"></video>
-        <video id="v_city" src="city.mp4" muted loop playsinline preload="metadata" style="display:none"></video>
-        <div class="infoch" id="info">
-          <p>Garpez is a branding studio. Placeholder copy: who we are, what we make and who we make it for goes here, in four or five lines like these.</p>
-          <div><span class="l">Email</span><span class="l">Insta</span><span class="l">LinkedIn</span><a href="https://garpez.studio" target="_blank" rel="noopener">garpez.studio</a></div>
-        </div>
-        <div class="crt"></div>
-      </div>
-    </div>
-{{PRESSED}}
-{{SHADES}}
-{{BUTTONS}}
-  </main>
-</div>
-<div class="remote" aria-label="Remote">
-  <button class="r-info" data-for="0">INFO</button>
-  <button class="r-ch" data-for="1">CH−</button>
-  <button class="r-ch" data-for="2">CH+</button>
-  <button class="r-pw" data-for="3">POWER</button>
-</div>
-<div class="copy">© 2026 GARPEZ</div>
-
-<script>
-(() => {
-  const $ = id => document.getElementById(id);
+/** Starts the television inside `root`. Returns a function that stops it. */
+export function mountTv(root) {
+  const $ = id => root.querySelector('#' + id);
   const tube = $('tube'), infoEl = $('info');
   const cv = $('c'), ctx = cv.getContext('2d');
   const W = cv.width, H = cv.height;
@@ -124,12 +20,19 @@
   const rnd = (a, b) => a + Math.random() * (b - a);
   const tri = (x, r) => r - Math.abs(((x % (2 * r)) + 2 * r) % (2 * r) - r);
   const pad = n => String(n).padStart(2, '0');
-  const F_PIX = '"VT323", ui-monospace, monospace', F_BIG = '"Archivo Black", "Arial Black", Impact, sans-serif';
+  const F_PIX = family('--font-vt', '"VT323", ui-monospace, monospace');
+  const F_BIG = family('--font-archivo', '"Archivo Black", "Arial Black", Impact, sans-serif');
   let power = false, ch = 0, raf = 0, muted = false, busy = false;
+  const sound = createAudio(() => muted);
+  const { sfx, setAmbience, timers } = sound;
 
-  /* ================= CHANNELS ================= */
-  // Every channel is tied to the wall clock: you always land mid-broadcast.
-  function stretchText(c, text, color, x, y, w, h) {   // fits the word inside the box, always taller than wide
+  const listen = (target, type, fn, opts) => {
+    target.addEventListener(type, fn, opts);
+    return () => target.removeEventListener(type, fn, opts);
+  };
+  const cleanups = [];
+
+  function stretchText(c, text, color, x, y, w, h) {
     c.save(); c.font = '100px ' + F_BIG; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
     const m = c.measureText(text);
     const tw = m.width || 1, asc = m.actualBoundingBoxAscent || 72, desc = m.actualBoundingBoxDescent || 1;
@@ -142,12 +45,11 @@
     const k = Math.floor(now / BEAT) % WORDS.length, p = (now % BEAT) / BEAT;
     const [word, bg] = WORDS[k];
     c.fillStyle = bg; c.fillRect(0, 0, W, H);
-    const grow = reduce ? 1 : (p < .12 ? .55 + .45 * (1 - Math.pow(1 - p / .12, 3)) : 1);  // snaps tall on every cut
+    const grow = reduce ? 1 : (p < .12 ? .55 + .45 * (1 - Math.pow(1 - p / .12, 3)) : 1);
     const bx = W * .07, bw = W * .86, bh = H * .78, by = H * .08 + bh * (1 - grow);
     stretchText(c, word, 'rgba(0,0,0,.42)', bx - 4, by + 4, bw, bh * grow);
     stretchText(c, word, '#efe9f2', bx, by, bw, bh * grow);
   }
-  const SPRITE = {{SPRITE}};   // pixel mascot from the SVG: [col, row, colour]
   function screensaver(c, now) {
     c.fillStyle = '#d8d1c2'; c.fillRect(0, 0, W, H);
     const cell = 9, sw = SPRITE.w * cell, sh = SPRITE.h * cell, t = now / 1000;
@@ -165,8 +67,6 @@
     c.globalCompositeOperation = 'source-over';
     c.fillStyle = '#fff'; c.fillText('NO SIGNAL', W / 2, H / 2 + 1);
   }
-  // video channels: the clip plays on a loop tied to the clock (you land mid-broadcast) and is shown whole,
-  // pillarboxed like vertical footage on a 4:3 set
   function videoChannel(el) {
     return (c, now) => {
       c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
@@ -185,7 +85,6 @@
     { name: 'INFO',        draw: c => { c.fillStyle = '#343434'; c.fillRect(0, 0, W, H); }, info: true },
   ];
 
-  /* ================= SCREEN FX ================= */
   const nimg = ctx.createImageData(W, H), nbuf = new Uint32Array(nimg.data.buffer);
   const ncv = mk(), nx = ncv.getContext('2d');
   function snow(c, alpha) {
@@ -193,10 +92,7 @@
     nx.putImageData(nimg, 0, 0);
     c.save(); c.globalAlpha = alpha; c.drawImage(ncv, 0, 0); c.restore();
   }
-  // Bottom-edge chroma band (as in the reference): a thin strip of fine rainbow noise (violet / blue / green)
-  // laid over the last lines of the picture, see-through. Its edges are irregular (they wander and step along
-  // the width), it tears to black on the left, and below it the tube is dark so the glass edge reflections show.
-  const BAND_BOX = 8;                       // canvas rows the band can move within
+  const BAND_BOX = 8;
   const bandImg = ctx.createImageData(W, BAND_BOX), bandBuf = new Uint32Array(bandImg.data.buffer);
   const bandCv = document.createElement('canvas'); bandCv.width = W; bandCv.height = BAND_BOX; const bandCx = bandCv.getContext('2d');
   const HUES = [[150, 90, 230], [100, 110, 255], [70, 170, 230], [90, 210, 150], [210, 90, 210]];
@@ -205,7 +101,7 @@
   function headSwitch(c, t) {
     const y0 = H - BAND_BOX - 9;
     tear += (18 + Math.sin(t / 700) * 10 - tear) * .1 + rnd(-1.5, 1.5);
-    if (t - lastSeg > 400) {                 // every so often a few segments jump: the stepped, broken look
+    if (t - lastSeg > 400) {
       lastSeg = t;
       for (let n = 0; n < 2; n++) { const sg = segs[(Math.random() * segs.length) | 0]; sg.top = Math.random() < .6 ? 0 : rnd(-.5, .5); sg.th = 0; }
     }
@@ -217,8 +113,8 @@
       const start = Math.max(0, tear * (1 - top / BAND_BOX) + rnd(-2, 2));
       for (let y = 0; y < BAND_BOX; y++) {
         let px;
-        if (y < top) px = 0;                                  // picture shows untouched above
-        else if (y >= bot || x < start) px = 0xff000000;       // dark tube below / black tear on the left
+        if (y < top) px = 0;
+        else if (y >= bot || x < start) px = 0xff000000;
         else {
           const hc = HUES[(Math.random() * HUES.length) | 0], k = .4 + Math.random() * .6, a = ((.08 + Math.random() * .12) * 255) | 0;
           px = (a << 24) | (((hc[2] * k) | 0) << 16) | (((hc[1] * k) | 0) << 8) | ((hc[0] * k) | 0);
@@ -228,14 +124,13 @@
     }
     bandCx.putImageData(bandImg, 0, 0);
     c.drawImage(bandCv, 0, y0);
-    for (let i = 0; i < 3; i++) {   // a few warm bright dashes just above
+    for (let i = 0; i < 3; i++) {
       c.fillStyle = `rgba(255,236,170,${rnd(.04, .1)})`;
       c.fillRect(rnd(0, W), y0 + 1 - Math.floor(rnd(0, 2)), rnd(6, 22), 1);
     }
     c.fillStyle = '#000'; c.fillRect(0, y0 + BAND_BOX, W, H);
   }
 
-  // the one channel-change animation: the new picture arrives warped for a moment, then settles
   let tr = null, osdUntil = 0;
   function startTransition(extra = 0) {
     tr = { t0: performance.now(), dur: (reduce ? 80 : 240) + extra, ph: rnd(0, 6),
@@ -253,19 +148,16 @@
     c.restore();
   }
 
-  /* ================= TUBE EFFECT (WebGL) ================= */
-  // The 2D canvas stays the source; the shader turns it into a picture on a curved tube.
-  // If WebGL is missing, the page falls back to the plain canvas and the CSS scanlines.
-  const glc = $('gl'); let gl = null, glTex = null, uRes = null;
+  const glc = $('gl'); let gl = null, glTex = null;
   (function initGL() {
     try { gl = glc.getContext('webgl', { antialias: false, premultipliedAlpha: false }); } catch (e) { gl = null; }
     if (!gl) return;
     const vs = 'attribute vec2 p; varying vec2 v; void main(){ v = vec2(p.x * .5 + .5, .5 - p.y * .5); gl_Position = vec4(p, 0., 1.); }';
     const fs = `precision mediump float;
       varying vec2 v; uniform sampler2D t; uniform vec2 res;
-      const float CURVE_X = .028, CURVE_Y = .04;   // barrel bulge of the glass
-      const float FRINGE = .0012;                    // colour fringing, grows toward the edges
-      const float GLOW = .8;                        // halo around bright areas
+      const float CURVE_X = .028, CURVE_Y = .04;
+      const float FRINGE = .0012;
+      const float GLOW = .8;
       vec2 bend(vec2 u) { u = u * 2. - 1.; u += u * (u.yx * u.yx) * vec2(CURVE_X, CURVE_Y); return u * .5 + .5; }
       vec3 hi(vec2 u) { return max(texture2D(t, u).rgb - .68, 0.); }
       void main() {
@@ -287,7 +179,7 @@
         c *= m < 1. ? vec3(1., .93, .93) : (m < 2. ? vec3(.93, 1., .93) : vec3(.93, .93, 1.));
         gl_FragColor = vec4(c, 1.);
       }`;
-    const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); return gl.getShaderParameter(o, gl.COMPILE_STATUS) ? o : null; };
+    const sh = (type, source) => { const o = gl.createShader(type); gl.shaderSource(o, source); gl.compileShader(o); return gl.getShaderParameter(o, gl.COMPILE_STATUS) ? o : null; };
     const v = sh(gl.VERTEX_SHADER, vs), f = sh(gl.FRAGMENT_SHADER, fs);
     if (!v || !f) { gl = null; return; }
     const pr = gl.createProgram(); gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr);
@@ -300,7 +192,7 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.uniform2f(gl.getUniformLocation(pr, 'res'), W, H);
-    glc.addEventListener('webglcontextlost', e => { e.preventDefault(); gl = null; tube.classList.remove('gl'); });
+    cleanups.push(listen(glc, 'webglcontextlost', e => { e.preventDefault(); gl = null; tube.classList.remove('gl'); }));
     tube.classList.add('gl');
   })();
   function sizeGL() {
@@ -317,9 +209,8 @@
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  /* ================= TUBE LIGHT ON THE SET ================= */
   const spillCv = $('spill'), spx = spillCv.getContext('2d');
-  const spillImg = new Image(); spillImg.src = 'spill.webp';
+  const spillImg = new Image(); spillImg.src = '/assets/spill.webp';
   const probe = document.createElement('canvas'); probe.width = 6; probe.height = 5;
   const pbx = probe.getContext('2d', { willReadFrequently: true });
   let glowCol = [0, 0, 0];
@@ -335,17 +226,15 @@
   function paintSpill(col) {
     spx.globalCompositeOperation = 'source-over'; spx.clearRect(0, 0, 1600, 900);
     if (!spillImg.complete || Math.max(...col) < 1) return;
-    // colour where the tube light falls, fully transparent everywhere else (so nothing can darken the sides)
     spx.fillStyle = `rgb(${Math.min(255, col[0] * 1.15) | 0},${Math.min(255, col[1] * 1.15) | 0},${Math.min(255, col[2] * 1.15) | 0})`;
     spx.fillRect(0, 0, 1600, 900);
     spx.globalCompositeOperation = 'destination-in';
     spx.drawImage(spillImg, 0, 0, 1600, 900);
   }
 
-  /* ================= POWER ON / OFF ================= */
   let pw = null;
   const ease = t => 1 - Math.pow(1 - t, 3);
-  function tubeState(t) { // scale X, scale Y, brightness
+  function tubeState(t) {
     if (!pw) return power ? [1, 1, 1] : [0, 0, 0];
     const p = Math.min(1, (t - pw.t0) / pw.dur);
     if (reduce) return pw.dir > 0 ? [1, 1, p] : [1, 1, 1 - p];
@@ -360,7 +249,6 @@
     const q = (p - .85) / .15; return [.012 * (1 - q), .004 * (1 - q), 12 * (1 - q)];
   }
 
-  /* ================= LOOP ================= */
   let lastSpill = 0, infoShown = false, lastBeat = -1;
   function frame() {
     raf = requestAnimationFrame(frame);
@@ -407,11 +295,6 @@
     }
   }
 
-{{AUDIO}}
-  // soft thud on every word cut of the carousel
-  sfx.cut = k => { if (!ac || ac.state !== 'running') return; tone('sine', 130 - k * 6, 52, .1, .3); noise(.018, .14, 'bandpass', 1500 + k * 220, 2); };
-
-  /* ================= CONTROLS ================= */
   function syncVideos() {
     for (const c of CH) if (c.video) {
       const v = c.video, on = power && CH[ch] === c;
@@ -427,7 +310,7 @@
     const dur = startTransition();
     syncVideos();
     setAmbience(null); sfx.static(dur);
-    ambTimer = setTimeout(() => { if (power) setAmbience(CH[ch].amb); }, dur);
+    timers.amb = setTimeout(() => { if (power) setAmbience(CH[ch].amb); }, dur);
     osdUntil = performance.now() + dur + 2400;
   }
   function togglePower() {
@@ -439,49 +322,59 @@
       cancelAnimationFrame(raf); frame(); syncVideos();
       const d = startTransition(160);
       setAmbience(null); osdUntil = performance.now() + d + 2600;
-      ambTimer = setTimeout(() => { if (power) setAmbience(CH[ch].amb); }, d);
+      timers.amb = setTimeout(() => { if (power) setAmbience(CH[ch].amb); }, d);
     } else {
       sfx.off(); setAmbience(null); glowCol = [255, 255, 255];
       pw = { dir: -1, t0: performance.now(), dur: reduce ? 200 : 700 };
     }
   }
   let prevCh = 0;
-  function openInfo() {   // INFO jumps to the info channel; press again to go back
+  function openInfo() {
     const i = CH.findIndex(c => c.info);
     if (power && !busy && ch !== i) prevCh = ch;
     setChannel(ch === i ? prevCh : i);
   }
-  function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 1; osdUntil = performance.now() + 1500; }
+  function toggleMute() { muted = !muted; if (sound.master) sound.master.gain.value = muted ? 0 : 1; osdUntil = performance.now() + 1500; }
 
-  // each key goes down on its own (render of that single key pressed)
-  const pressed = [...document.querySelectorAll('.pressed')], shades = [...document.querySelectorAll('.shade')], btns = [...document.querySelectorAll('.btn')];
+  const pressed = [...root.querySelectorAll('.pressed')], shades = [...root.querySelectorAll('.shade')], btns = [...root.querySelectorAll('.btn')];
   function hold(k, down) { pressed[k].classList.toggle('show', down); shades[k].classList.toggle('show', down); }
-  function press(k) { hold(k, true); clearTimeout(pressed[k]._t); pressed[k]._t = setTimeout(() => hold(k, false), 130); }  // keyboard / remote tap
+  function press(k) { hold(k, true); clearTimeout(pressed[k]._t); pressed[k]._t = setTimeout(() => hold(k, false), 130); }
   const act = [openInfo, () => setChannel(ch - 1), () => setChannel(ch + 1), togglePower];
   btns.forEach((b, k) => {
-    b.addEventListener('pointerdown', e => { clearTimeout(pressed[k]._t); hold(k, true); try { b.setPointerCapture(e.pointerId); } catch (x) {} });
-    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => hold(k, false));
-    b.addEventListener('click', e => { if (e.detail === 0) press(k); act[k](); b.blur(); });
+    cleanups.push(listen(b, 'pointerdown', e => { clearTimeout(pressed[k]._t); hold(k, true); try { b.setPointerCapture(e.pointerId); } catch (x) {} }));
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) cleanups.push(listen(b, ev, () => hold(k, false)));
+    cleanups.push(listen(b, 'click', e => { if (e.detail === 0) press(k); act[k](); b.blur(); }));
   });
-  document.querySelectorAll('.remote button').forEach(r => r.addEventListener('click', () => { const k = +r.dataset.for; press(k); act[k](); }));
+  root.querySelectorAll('.remote button').forEach(r => cleanups.push(listen(r, 'click', () => { const k = +r.dataset.for; press(k); act[k](); })));
   const keyMap = { ArrowRight: 2, ArrowUp: 2, ArrowLeft: 1, ArrowDown: 1, p: 3, i: 0 };
-  addEventListener('keydown', e => {
+  cleanups.push(listen(window, 'keydown', e => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === 'm') return toggleMute();
     if (/^[1-6]$/.test(k)) { if (power && +k - 1 !== ch) { press(2); setChannel(+k - 1); } return; }
     if (!(k in keyMap)) return;
     e.preventDefault(); press(keyMap[k]); act[keyMap[k]]();
-  });
+  }));
   let sx0 = null;
-  $('screen').addEventListener('pointerdown', e => { sx0 = e.clientX; });
-  $('screen').addEventListener('pointerup', e => {
+  const screen = $('screen');
+  cleanups.push(listen(screen, 'pointerdown', e => { sx0 = e.clientX; }));
+  cleanups.push(listen(screen, 'pointerup', e => {
     if (sx0 === null) return; const dx = e.clientX - sx0; sx0 = null;
     if (Math.abs(dx) > 40) setChannel(ch + (dx < 0 ? 1 : -1));
-  });
-  document.addEventListener('visibilitychange', () => { if (ac) (document.hidden ? ac.suspend() : ac.resume()).catch(() => {}); });
-  if (document.fonts && document.fonts.load) { document.fonts.load('20px "VT323"'); document.fonts.load('20px "Archivo Black"'); }
-})();
-</script>
-</body>
-</html>
+  }));
+  cleanups.push(listen(document, 'visibilitychange', () => { if (sound.ac) (document.hidden ? sound.ac.suspend() : sound.ac.resume()).catch(() => {}); }));
+  if (document.fonts && document.fonts.load) {
+    const first = stack => { const m = stack.match(/["']([^"']+)["']/); return m ? m[1] : stack.split(',')[0].trim(); };
+    document.fonts.load(`20px "${first(F_PIX)}"`);
+    document.fonts.load(`20px "${first(F_BIG)}"`);
+  }
+
+  return () => {
+    cancelAnimationFrame(raf);
+    clearTimeout(timers.amb);
+    for (const el of pressed) clearTimeout(el._t);
+    for (const fn of cleanups) fn();
+    for (const c of CH) if (c.video && !c.video.paused) c.video.pause();
+    sound.close();
+  };
+}
