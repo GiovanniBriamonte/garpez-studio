@@ -1,10 +1,9 @@
 import type { CSSProperties } from 'react';
 import type { Metadata } from 'next';
-import { Archivo_Black, Doto, Fredoka, VT323 } from 'next/font/google';
+import { Doto, Fredoka, VT323 } from 'next/font/google';
 import geo from '../src/tv-geometry.json';
 import '../styles/tv.css';
 
-const archivo = Archivo_Black({ weight: '400', subsets: ['latin'], variable: '--font-archivo', display: 'swap' });
 const vt = VT323({ weight: '400', subsets: ['latin'], variable: '--font-vt', display: 'swap' });
 const fredoka = Fredoka({ weight: '700', subsets: ['latin'], variable: '--font-fredoka', display: 'swap' });
 const doto = Doto({ weight: '900', subsets: ['latin'], variable: '--font-doto', display: 'swap' });
@@ -32,7 +31,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html
       lang="en"
-      className={`${archivo.variable} ${vt.variable} ${fredoka.variable} ${doto.variable}`}
+      className={`${vt.variable} ${fredoka.variable} ${doto.variable}`}
       style={tvStyle}
     >
       <body>{children}</body>

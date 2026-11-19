@@ -55,8 +55,6 @@ export function createAudio(isMuted) {
       noise(.03, .6, 'bandpass', 2200, 1); tone('sine', 120, 40, .16, .6);
       tone('sine', 11000, 2400, .4, .022, t + .02);
     },
-    // soft thud on every word cut of the carousel
-    cut(k) { if (!ac || ac.state !== 'running') return; tone('sine', 130 - k * 6, 52, .1, .3); noise(.018, .14, 'bandpass', 1500 + k * 220, 2); },
   };
 
   return {

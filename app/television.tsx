@@ -3,29 +3,28 @@
 import { useEffect, useRef } from 'react';
 import { mountTv } from '../src/tv-engine';
 import geo from '../src/tv-geometry.json';
+import type { VideoChannel } from './channels';
 
-export default function Television() {
+export default function Television({ videos }: { videos: VideoChannel[] }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    return mountTv(root);
-  }, []);
+    return mountTv(root, videos);
+  }, [videos]);
 
   return (
     <div ref={rootRef}>
       <div className="wrap">
         <div className="backdrop" />
         <main className="stage" id="tv">
-          <img id="base" className="feather" src="/assets/dark.webp" alt="garpez.tv television set" />
+          <img id="base" className="feather" src="/assets/dark.webp" alt="garpez.tv television set" draggable={false} />
           <canvas className="spill" id="spill" width={1600} height={900} />
           <div className="screen" id="screen">
             <div className="tube" id="tube">
               <canvas id="c" width={400} height={geo.canvasHeight} aria-label="TV screen" />
               <canvas id="gl" aria-hidden="true" />
-              <video id="v_work" src="/tv/work.mp4" muted loop playsInline preload="auto" style={{ display: 'none' }} />
-              <video id="v_city" src="/tv/city.mp4" muted loop playsInline preload="metadata" style={{ display: 'none' }} />
               <div className="infoch" id="info">
                 <p>Garpez is a branding studio. Placeholder copy: who we are, what we make and who we make it for goes here, in four or five lines like these.</p>
                 <div>
@@ -44,6 +43,7 @@ export default function Television() {
               className="pressed"
               src={`/assets/key${i}.webp`}
               alt=""
+              draggable={false}
               style={{
                 left: `${key.pressed.left}%`,
                 top: `${key.pressed.top}%`,
