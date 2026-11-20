@@ -1,12 +1,20 @@
 import type { CSSProperties } from 'react';
 import type { Metadata } from 'next';
-import { Doto, Fredoka, VT323 } from 'next/font/google';
+import { Chakra_Petch, Doto, Fredoka, VT323 } from 'next/font/google';
 import geo from '../src/tv-geometry.json';
 import '../styles/tv.css';
 
 const vt = VT323({ weight: '400', subsets: ['latin'], variable: '--font-vt', display: 'swap' });
 const fredoka = Fredoka({ weight: '700', subsets: ['latin'], variable: '--font-fredoka', display: 'swap' });
 const doto = Doto({ weight: '900', subsets: ['latin'], variable: '--font-doto', display: 'swap' });
+/* the menus of the ABOUT channel */
+const chakra = Chakra_Petch({
+  weight: ['500', '700'],
+  style: ['normal', 'italic'],
+  subsets: ['latin'],
+  variable: '--font-chakra',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'garpez.tv',
@@ -31,7 +39,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html
       lang="en"
-      className={`${vt.variable} ${fredoka.variable} ${doto.variable}`}
+      className={`${vt.variable} ${fredoka.variable} ${doto.variable} ${chakra.variable}`}
       style={tvStyle}
     >
       <body>{children}</body>

@@ -55,6 +55,14 @@ export function createAudio(isMuted) {
       noise(.03, .6, 'bandpass', 2200, 1); tone('sine', 120, 40, .16, .6);
       tone('sine', 11000, 2400, .4, .022, t + .02);
     },
+    /* game sounds for the ABOUT channel */
+    cursor() { if (!audio()) return; tone('square', 660, 880, .05, .05); },
+    confirm() {
+      if (!audio()) return; const t = ac.currentTime;
+      tone('square', 660, 660, .07, .06, t); tone('square', 990, 990, .07, .06, t + .07); tone('square', 1320, 1320, .18, .06, t + .14);
+    },
+    back() { if (!audio()) return; const t = ac.currentTime; tone('square', 520, 390, .08, .05, t); tone('square', 390, 260, .12, .05, t + .07); },
+    tick() { if (!audio()) return; tone('square', 1400, 1400, .02, .02); },
   };
 
   return {

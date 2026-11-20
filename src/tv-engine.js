@@ -1,7 +1,11 @@
 import { createAudio } from "./audio.js";
+import { createAbout } from "./about/about-channel.js";
 import geo from "./tv-geometry.json";
 
 const SPRITE = geo.sprite;
+/* How much the tube glass bends the picture; shared by the shader and the pointer mapping. */
+const CURVE_X = 0.028,
+  CURVE_Y = 0.04;
 function family(variable, fallback) {
   const stack = getComputedStyle(document.documentElement)
     .getPropertyValue(variable)
@@ -10,13 +14,19 @@ function family(variable, fallback) {
 }
 
 /**
- * Starts the television inside `root`; `videos` ({ name, src }) become the first channels.
+ * Starts the television inside `root`; `videos` ({ name, src }) become the first channels,
+ * `models` lists the character files found in /public/about for the ABOUT channel.
  * Returns a function that stops it.
+ *
+ * A channel is { name, draw(c, now) } plus, optionally: `video`, `amb`, `info`, and for
+ * playable channels `enter()`, `leave()`, `key(k)` and `pointer(type, x, y, kind)`.
+ * Channels always draw in a W x H space; one that sets `scale` gets that many times the definition.
  */
-export function mountTv(root, videos = []) {
+export function mountTv(root, videos = [], models = []) {
   const $ = (id) => root.querySelector("#" + id);
   const tube = $("tube"),
-    infoEl = $("info");
+    infoEl = $("info"),
+    screen = $("screen");
   const cv = $("c"),
     ctx = cv.getContext("2d");
   const W = cv.width,
@@ -34,6 +44,19 @@ export function mountTv(root, videos = []) {
   const tri = (x, r) => r - Math.abs((((x % (2 * r)) + 2 * r) % (2 * r)) - r);
   const pad = (n) => String(n).padStart(2, "0");
   const F_PIX = family("--font-vt", '"VT323", ui-monospace, monospace');
+  const F_DOT = family("--font-doto", "ui-monospace, monospace");
+  const F_UI = family("--font-chakra", "ui-sans-serif, system-ui, sans-serif");
+  /* Definition of the picture: the canvases hold W*S x H*S pixels, drawing stays in W x H. */
+  let S = 1;
+  function setScale(n) {
+    S = n;
+    for (const c of [cv, src]) {
+      c.width = W * S;
+      c.height = H * S;
+    }
+    ctx.setTransform(S, 0, 0, S, 0, 0);
+    sx.setTransform(S, 0, 0, S, 0, 0);
+  }
   let power = false,
     ch = 0,
     raf = 0,
@@ -118,6 +141,21 @@ export function mountTv(root, videos = []) {
       info: true,
     },
   ];
+  /* ABOUT is always channel 4, wherever the videos end. It is drawn sharp enough for the size of the screen. */
+  const about = createAbout({
+    W,
+    H,
+    scale: Math.min(
+      3,
+      Math.max(2, Math.ceil((screen.clientWidth * Math.min(window.devicePixelRatio || 1, 2)) / W)),
+    ),
+    sprite: SPRITE,
+    fonts: { ui: F_UI, dot: F_DOT },
+    sfx,
+    reduce,
+    models,
+  });
+  CH.splice(Math.min(3, CH.length), 0, about);
 
   const nimg = ctx.createImageData(W, H),
     nbuf = new Uint32Array(nimg.data.buffer);
@@ -259,7 +297,7 @@ export function mountTv(root, videos = []) {
       "attribute vec2 p; varying vec2 v; void main(){ v = vec2(p.x * .5 + .5, .5 - p.y * .5); gl_Position = vec4(p, 0., 1.); }";
     const fs = `precision mediump float;
       varying vec2 v; uniform sampler2D t; uniform vec2 res;
-      const float CURVE_X = .028, CURVE_Y = .04;
+      const float CURVE_X = ${CURVE_X}, CURVE_Y = ${CURVE_Y};
       const float FRINGE = .0012;
       const float GLOW = .8;
       vec2 bend(vec2 u) { u = u * 2. - 1.; u += u * (u.yx * u.yx) * vec2(CURVE_X, CURVE_Y); return u * .5 + .5; }
@@ -435,6 +473,7 @@ export function mountTv(root, videos = []) {
     raf = requestAnimationFrame(frame);
     const t = performance.now(),
       now = Date.now();
+    if ((CH[ch].scale || 1) !== S) setScale(CH[ch].scale || 1);
     CH[ch].draw(sx, now);
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, W, H);
@@ -448,18 +487,19 @@ export function mountTv(root, videos = []) {
           for (const b of tr.bands)
             if (y > b.y && y < b.y + b.h) o += b.o * amp;
           o = Math.round(o);
-          ctx.drawImage(src, 0, y, W, 2, o, y, W, 2);
-          ctx.drawImage(src, 0, y, W, 2, o + (o > 0 ? -W : W), y, W, 2);
+          ctx.drawImage(src, 0, y * S, W * S, 2 * S, o, y, W, 2);
+          ctx.drawImage(src, 0, y * S, W * S, 2 * S, o + (o > 0 ? -W : W), y, W, 2);
         }
         snow(ctx, 0.14 * amp);
         showOsd = false;
       } else {
         if (e >= tr.dur) tr = null;
-        ctx.drawImage(src, 0, 0);
+        ctx.drawImage(src, 0, 0, W, H);
       }
-    } else ctx.drawImage(src, 0, 0);
+    } else ctx.drawImage(src, 0, 0, W, H);
     if (!reduce) {
-      snow(ctx, 0.05);
+      /* channels drawn sharper (ABOUT) get less snow, so the picture stays readable */
+      snow(ctx, S > 1 ? 0.02 : 0.05);
       const hy = ((t / 14) % (H + 120)) - 60;
       const g = ctx.createLinearGradient(0, hy - 40, 0, hy + 40);
       g.addColorStop(0, "rgba(255,255,255,0)");
@@ -515,6 +555,17 @@ export function mountTv(root, videos = []) {
           if (pr) pr.catch(() => {});
         } else if (!on && !v.paused) v.pause();
       }
+    syncLive();
+  }
+  /* Tells playable channels when they go on and off air. */
+  let live = null;
+  function syncLive() {
+    const next = power ? CH[ch] : null;
+    if (next === live) return;
+    if (live && live.leave) live.leave();
+    live = next;
+    screen.style.cursor = "";
+    if (live && live.enter) live.enter();
   }
   function setChannel(n) {
     sfx.click();
@@ -624,6 +675,12 @@ export function mountTv(root, videos = []) {
     listen(window, "keydown", (e) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      /* the channel on air gets first refusal, unless the key is aimed at a focused button */
+      const onControl = e.target instanceof Element && e.target.closest("button, a");
+      if (power && !busy && !onControl && CH[ch].key && CH[ch].key(k)) {
+        e.preventDefault();
+        return;
+      }
       if (k === "m") return toggleMute();
       if (/^[1-9]$/.test(k)) {
         if (power && +k <= CH.length && +k - 1 !== ch) {
@@ -638,8 +695,24 @@ export function mountTv(root, videos = []) {
       act[keyMap[k]]();
     }),
   );
+  /* Where a pointer lands on the picture, in canvas pixels, following the bend of the glass. */
+  function screenPoint(e) {
+    const r = screen.getBoundingClientRect();
+    let x = ((e.clientX - r.left) / r.width) * 2 - 1,
+      y = ((e.clientY - r.top) / r.height) * 2 - 1;
+    if (gl) [x, y] = [x + x * y * y * CURVE_X, y + y * x * x * CURVE_Y];
+    return [(x * 0.5 + 0.5) * W, (y * 0.5 + 0.5) * H];
+  }
+  function point(type, e) {
+    const c = CH[ch];
+    if (!power || busy || !c.pointer) return;
+    const hot =
+      type === "leave"
+        ? c.pointer(type)
+        : c.pointer(type, ...screenPoint(e), e.pointerType);
+    screen.style.cursor = hot ? "pointer" : "";
+  }
   let sx0 = null;
-  const screen = $("screen");
   cleanups.push(
     listen(screen, "pointerdown", (e) => {
       sx0 = e.clientX;
@@ -651,8 +724,11 @@ export function mountTv(root, videos = []) {
       const dx = e.clientX - sx0;
       sx0 = null;
       if (Math.abs(dx) > 40) setChannel(ch + (dx < 0 ? 1 : -1));
+      else if (e.button === 0) point("tap", e);
     }),
   );
+  cleanups.push(listen(screen, "pointermove", (e) => point("move", e)));
+  cleanups.push(listen(screen, "pointerleave", (e) => point("leave", e)));
   cleanups.push(
     listen(document, "visibilitychange", () => {
       if (sound.ac)
@@ -667,6 +743,9 @@ export function mountTv(root, videos = []) {
       return m ? m[1] : stack.split(",")[0].trim();
     };
     document.fonts.load(`20px "${first(F_PIX)}"`);
+    document.fonts.load(`900 40px "${first(F_DOT)}"`);
+    for (const style of ["500", "700", "italic 500", "italic 700"])
+      document.fonts.load(`${style} 20px "${first(F_UI)}"`);
   }
 
   return () => {
@@ -675,6 +754,10 @@ export function mountTv(root, videos = []) {
     for (const el of pressed) clearTimeout(el._t);
     for (const fn of cleanups) fn();
     for (const c of CH) if (c.video && !c.video.paused) c.video.pause();
+    if (live && live.leave) live.leave();
+    live = null;
+    about.dispose();
+    setScale(1);
     sound.close();
   };
 }

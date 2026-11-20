@@ -5,14 +5,14 @@ import { mountTv } from '../src/tv-engine';
 import geo from '../src/tv-geometry.json';
 import type { VideoChannel } from './channels';
 
-export default function Television({ videos }: { videos: VideoChannel[] }) {
+export default function Television({ videos, models }: { videos: VideoChannel[]; models: string[] }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    return mountTv(root, videos);
-  }, [videos]);
+    return mountTv(root, videos, models);
+  }, [videos, models]);
 
   return (
     <div ref={rootRef}>
