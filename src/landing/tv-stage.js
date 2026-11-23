@@ -41,6 +41,9 @@ function drawScreen(ctx, video) {
  * Mounts the TV into `stage`. `onActivate` fires for a click on the model,
  * Enter/Space, or a click anywhere if the model failed to load.
  * Returns a cleanup function.
+ * @param {HTMLElement} stage
+ * @param {{ reduce?: boolean, onActivate?: () => void }} [options]
+ * @returns {() => void}
  */
 export function mountLandingTv(stage, { reduce = false, onActivate } = {}) {
   let disposed = false;
