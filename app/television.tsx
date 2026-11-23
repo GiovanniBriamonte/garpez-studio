@@ -1,12 +1,18 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { mountTv } from '../src/tv-engine';
 import geo from '../src/tv-geometry.json';
 import type { VideoChannel } from './channels';
 
 export default function Television({ videos, models }: { videos: VideoChannel[]; models: string[] }) {
   const rootRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const body = document.body;
+    body.classList.add('tv-mode');
+    return () => body.classList.remove('tv-mode');
+  }, []);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -26,12 +32,11 @@ export default function Television({ videos, models }: { videos: VideoChannel[];
               <canvas id="c" width={400} height={geo.canvasHeight} aria-label="TV screen" />
               <canvas id="gl" aria-hidden="true" />
               <div className="infoch" id="info">
-                <p>Garpez is a branding studio. Placeholder copy: who we are, what we make and who we make it for goes here, in four or five lines like these.</p>
+                <p>Two Italians in Oslo, making things we wish existed. We turn ideas into brands, websites and digital experiences for startups and people building something new. We think, design, code, animate, experiment, and obsess over the little details. Small studio. Big curiosity.</p>
                 <div>
-                  <span className="l">Email</span>
-                  <span className="l">Insta</span>
-                  <span className="l">LinkedIn</span>
-                  <a href="https://garpez.studio" target="_blank" rel="noopener">garpez.studio</a>
+                  <a href="mailto:ciao@garpez.studio">Email</a>
+                  <a href="https://google.com" target="_blank" rel="noopener">Insta</a>
+                  <a href="https://www.linkedin.com/company/garpezstudio/" target="_blank" rel="noopener">LinkedIn</a>
                 </div>
               </div>
               <div className="crt" />

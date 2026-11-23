@@ -19,9 +19,6 @@ const CREAM = "#d8d1c2",
   LIGHT = "255,244,222"; // the spots
 const DIM = "rgba(216,209,194,.55)";
 const TYPE_SPEED = 48; // characters per second
-const BOX = { x: 10, y: 194, w: 380, h: 92 }; // the dialogue box
-const CARD = { w: 140, h: 174 }; // the skill sheet; placed dead centre in the select screen
-const EDGE = 22; // the title and the selectors sit this far from the glass
 
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 
@@ -35,10 +32,10 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
     ready = false,
     started = false,
     dead = false;
-  let focus = 0, // who the cursor is on
-    armed = -1, // touch: who has been tapped once
+    let focus = 0, // who is on the turntable
     picked = 0,
     cardAt = 0,
+    denied = 0, // last time a locked character refused a select
     chosenFor = 1.3,
     talk = null;
 
@@ -267,40 +264,6 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
     c.globalAlpha = reduce ? 1 : 0.35 + 0.65 * Math.abs(Math.sin(t * 2.6));
     lift(c, coarse ? COPY.startTouch : COPY.start, W / 2, 236, font(17, 700), CREAM, "center", 2.5);
     c.globalAlpha = 1;
-    put(c, COPY.footer, W / 2, 274, font(9, 500), DIM, "center", 1.5);
-  }
-  function card(c, m, now, box) {
-    const { x, y, w, h } = box,
-      p = reduce ? 1 : ease(Math.min(1, (now - cardAt) / 420)),
-      full = w - 20;
-    panel(c, x, y, w, h);
-    fringe(c, m.name, x + w / 2, y + 22, font(30, 700, true), CREAM, "center", 1);
-    put(c, m.role, x + w / 2, y + 42, font(9.5, 700), YELLOW, "center", 2);
-    rule(c, x + 8, y + 52, w - 16, "rgba(255,255,255,.35)");
-    m.skills.forEach(([label, value], i) => {
-      const sy = y + 65 + i * 23,
-        n = Math.round(value * p),
-        fill = Math.max(n ? 3 : 0, (full * n) / 100);
-      put(c, label, x + 10, sy, font(10, 500), CREAM, "left", 0.3);
-      put(c, String(n), x + w - 10, sy, font(10.5, 700), CREAM, "right");
-      round(c, x + 10, sy + 7, full, 5, 2.5);
-      c.fillStyle = "rgba(255,255,255,.12)";
-      c.fill();
-      if (fill) {
-        round(c, x + 10, sy + 7, fill, 5, 2.5);
-        c.fillStyle = shade(c, x + 10, 0, x + 10 + full, 0, RED, ORANGE);
-        c.fill();
-        c.fillStyle = "rgba(255,255,255,.3)";
-        c.fillRect(x + 12, sy + 8, Math.max(0, fill - 4), 1);
-      }
-      c.fillStyle = "rgba(0,0,0,.4)";
-      for (let k = 1; k < 10; k++) c.fillRect(x + 10 + (full * k) / 10, sy + 7, 0.5, 5);
-    });
-    c.font = font(10.5, 500, true);
-    if ("letterSpacing" in c) c.letterSpacing = "0px";
-    wrap(c, `"${m.tagline}"`, w - 18)
-      .slice(0, 2)
-      .forEach((line, i) => put(c, line, x + w / 2, y + 158 + i * 12, font(10.5, 500, true), GREEN, "center"));
   }
   function hints(c, y) {
     const f = font(8.5, 700);
@@ -324,27 +287,64 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
     if ("letterSpacing" in c) c.letterSpacing = "0px";
     return Math.ceil(c.measureText(label).width) + 10;
   };
+  /* The card and the quote share one pair of side edges. The arrows stop on those edges. */
+  const frame = () => ({ y: H - 32, left: 34, right: W - 34 });
+  /* The dialogue box uses the same side edges, and stays clear of the glass. */
+  const talkBox = () => {
+    const f = frame();
+    return { x: f.left, y: 198, w: f.right - f.left, h: 84 };
+  };
+  function tri(c, x, y, dir) {
+    c.fillStyle = YELLOW;
+    c.beginPath();
+    c.moveTo(x + dir * 9, y);
+    c.lineTo(x - dir * 7, y - 10);
+    c.lineTo(x - dir * 7, y + 10);
+    c.fill();
+  }
   function selectScreen(c, now) {
-    const titleY = EDGE + 8,
-      hintY = H - EDGE - 7,
-      sheet = {
-        x: Math.round((W - CARD.w) / 2),
-        y: Math.round((H - CARD.h) / 2),
-        w: CARD.w,
-        h: CARD.h,
-      };
-    lift(c, COPY.choose, W / 2, titleY, font(15, 700, true), CREAM, "center", 1.5);
-    rule(c, W / 2 - 96, titleY + 12, 192, YELLOW);
-    /* player tags floating over the heads, kept clear of the title */
-    CREW.forEach((m, i) => {
-      const on = i === focus,
-        [x, top] = spot(i, 2.07),
-        y = Math.max(titleY + 22, Math.round(top)) + (on && !reduce ? Math.round(Math.sin(now / 160) * 1.5) : 0);
-      pill(c, `${i + 1}P  ${m.name}`, x, y, font(9.5, 700), on);
-      if (on) arrow(c, x, y + 11, 3.5, "down", YELLOW);
+    const m = CREW[focus],
+      p = reduce ? 1 : ease(Math.min(1, (now - cardAt) / 420)),
+      box = frame(),
+      shake = m.locked && now - denied < 320 ? Math.round(Math.sin((now - denied) / 26) * 3) : 0,
+      sheet = { x: box.left + shake, y: 78, w: 132, h: 124 };
+    fringe(c, m.name, box.left + 2 + shake, 40, font(26, 700, true), m.locked ? DIM : CREAM, "left", 0.4);
+    put(c, m.role, box.left + 2 + shake, 60, font(9, 700), YELLOW, "left", 1.2);
+    panel(c, sheet.x, sheet.y, sheet.w, sheet.h);
+    if (m.locked) {
+      put(c, "LOCKED", sheet.x + sheet.w / 2, sheet.y + 46, font(16, 700, true), YELLOW, "center", 1.5);
+      c.font = font(10, 500);
+      if ("letterSpacing" in c) c.letterSpacing = "0px";
+      wrap(c, COPY.lockedLine, sheet.w - 18).forEach((line, i, all) =>
+        put(c, line, sheet.x + sheet.w / 2, sheet.y + 74 + (i - (all.length - 1) / 2) * 13, font(10, 500), CREAM, "center", 0.4),
+      );
+    }
+    if (!m.locked) m.skills.forEach(([label, value], i) => {
+      const sy = sheet.y + 16 + i * 27,
+        full = sheet.w - 20,
+        n = Math.round(value * p),
+        fill = Math.max(n ? 3 : 0, (full * n) / 100);
+      put(c, label, sheet.x + 10, sy, font(10, 500), CREAM, "left", 0.3);
+      put(c, String(n), sheet.x + sheet.w - 10, sy, font(10, 700), CREAM, "right");
+      round(c, sheet.x + 10, sy + 7, full, 5, 2.5);
+      c.fillStyle = "rgba(255,255,255,.12)";
+      c.fill();
+      if (fill) {
+        round(c, sheet.x + 10, sy + 7, fill, 5, 2.5);
+        c.fillStyle = shade(c, sheet.x + 10, 0, sheet.x + 10 + full, 0, RED, ORANGE);
+        c.fill();
+      }
     });
-    card(c, CREW[focus], now, sheet);
-    hints(c, hintY);
+    c.font = font(13, 500, true);
+    if ("letterSpacing" in c) c.letterSpacing = "0px";
+    const lines = wrap(c, `"${m.tagline}"`, 120).slice(0, 3),
+      quoteTop = 158 - ((lines.length - 1) * 16) / 2;
+    put(c, "TRIGGER", box.right, quoteTop - 16, font(8, 700), YELLOW, "right", 1.6);
+    lines.forEach((line, i) => put(c, line, box.right, quoteTop + i * 16, font(13, 500, true), GREEN, "right"));
+    /* tips land on the same x as the card and the quote */
+    tri(c, box.left + 9, box.y, -1);
+    tri(c, box.right - 9, box.y, 1);
+    hints(c, box.y);
   }
   function chosenScreen(c, el) {
     if (!reduce && el < 0.25) {
@@ -353,37 +353,43 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
     }
     /* the camera centres the pick, so the words sit either side of it */
     if (el < 0.2) return;
-    fringe(c, CREW[picked].name, W - 22, 150, font(36, 700, true), CREAM, "right", 1);
-    if (reduce || Math.floor(el * 6) % 2 === 0) fringe(c, COPY.ready, 20, 150, font(30, 700, true), YELLOW, "left", 1);
+    fringe(c, CREW[picked].name, frame().right, 150, font(36, 700, true), CREAM, "right", 1);
+    if (reduce || Math.floor(el * 6) % 2 === 0) fringe(c, COPY.ready, frame().left, 150, font(30, 700, true), YELLOW, "left", 1);
   }
-  const choiceAt = (i) => [BOX.x + 32 + (i % 2) * 182, BOX.y + 51 + Math.floor(i / 2) * 23];
+  const choiceAt = (i) => {
+    const b = talkBox(),
+      col = (b.w - 24) / 2;
+    return [b.x + 14 + (i % 2) * col, b.y + 48 + Math.floor(i / 2) * 22, col];
+  };
   function talkScreen(c, now, dt) {
-    const m = CREW[picked];
-    fringe(c, m.name, W - 16, 28, font(30, 700, true), CREAM, "right", 1);
-    lift(c, m.role, W - 16, 48, font(9.5, 700), YELLOW, "right", 2);
-    panel(c, BOX.x, BOX.y, BOX.w, BOX.h);
-    pill(c, m.name, BOX.x + 12, BOX.y, font(10, 700), true, "left");
+    const m = CREW[picked],
+      b = talkBox(),
+      edge = frame();
+    fringe(c, m.name, edge.right, 40, font(28, 700, true), CREAM, "right", 1);
+    lift(c, m.role, edge.right, 60, font(9.5, 700), YELLOW, "right", 2);
+    panel(c, b.x, b.y, b.w, b.h);
+    pill(c, m.name, b.x + 12, b.y, font(10, 700), true, "left");
 
     if (talk.menu) {
-      put(c, COPY.prompt, BOX.x + 16, BOX.y + 25, font(14, 500), DIM);
+      put(c, COPY.prompt, b.x + 16, b.y + 24, font(14, 500), DIM);
       COPY.menu.forEach(([, label], i) => {
-        const [x, y] = choiceAt(i),
+        const [x, y, col] = choiceAt(i),
           on = i === talk.sel;
         if (on) {
-          round(c, x - 18, y - 10, 176, 20, 4);
-          c.fillStyle = shade(c, x - 18, 0, x + 158, 0, "rgba(242,181,26,.3)", "rgba(242,181,26,.04)");
+          round(c, x - 6, y - 10, col - 8, 20, 4);
+          c.fillStyle = shade(c, x - 6, 0, x + col - 14, 0, "rgba(242,181,26,.3)", "rgba(242,181,26,.04)");
           c.fill();
-          arrow(c, x - 9, y, 4, "right", YELLOW);
+          arrow(c, x + 2, y, 4, "right", YELLOW);
         }
-        put(c, label, x, y + 0.5, font(12.5, 700), on ? YELLOW : CREAM, "left", 0.6);
+        put(c, label, x + (on ? 12 : 0), y + 0.5, font(12, 700), on ? YELLOW : CREAM, "left", 0.4);
       });
       return;
     }
-    const f = font(14.5, 500);
+    const fnt = font(14.5, 500);
     if (!talk.pages) {
-      c.font = f;
+      c.font = fnt;
       if ("letterSpacing" in c) c.letterSpacing = "0px";
-      const lines = wrap(c, talk.text, BOX.w - 34);
+      const lines = wrap(c, talk.text, b.w - 32);
       talk.pages = [];
       for (let i = 0; i < lines.length; i += 3) talk.pages.push(lines.slice(i, i + 3));
     }
@@ -396,11 +402,11 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
     }
     let left = Math.floor(talk.shown);
     lines.forEach((line, i) => {
-      if (left > 0) put(c, line.slice(0, left), BOX.x + 17, BOX.y + 27 + i * 20, f, CREAM);
+      if (left > 0) put(c, line.slice(0, left), b.x + 16, b.y + 26 + i * 20, fnt, CREAM);
       left -= line.length;
     });
     if (talk.shown >= total)
-      arrow(c, BOX.x + BOX.w - 18, BOX.y + BOX.h - 14 + (reduce ? 0 : Math.round(Math.sin(now / 140) * 1.5)), 4, "down", YELLOW);
+      arrow(c, b.x + b.w - 16, b.y + b.h - 14 + (reduce ? 0 : Math.round(Math.sin(now / 140) * 1.5)), 4, "down", YELLOW);
   }
 
   function draw(c, now) {
@@ -436,11 +442,15 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
   }
   function start() {
     sfx.confirm();
-    armed = -1;
     cardAt = Date.now();
     go("select");
   }
   function pick() {
+    if (CREW[focus].locked) {
+      denied = Date.now();
+      sfx.back();
+      return;
+    }
     picked = focus;
     sfx.confirm();
     chosenFor = Math.max(1.3, Math.min(stage ? stage.play(picked) : 0, 2.6));
@@ -448,7 +458,6 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
   }
   function toSelect() {
     sfx.back();
-    armed = -1;
     cardAt = Date.now();
     go("select");
   }
@@ -506,12 +515,23 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
     say(node);
   }
 
-  const zone = (x, y) =>
-    y < 30 || y > 262 ? -1 : CREW.findIndex((_, i) => Math.abs(x - spot(i, 0)[0]) < 50);
+  /* -1 or +1 when the pointer is on a paging triangle, otherwise 0 */
+  const pageAt = (x, y) => {
+    const t = frame();
+    if (Math.abs(y - t.y) > 16) return 0;
+    if (Math.abs(x - (t.left + 9)) < 18) return -1;
+    if (Math.abs(x - (t.right - 9)) < 18) return 1;
+    return 0;
+  };
+  /* the card on the left and the quote on the right are for reading */
+  const onCopy = (x, y) => {
+    const t = frame();
+    return (x >= t.left - 4 && x <= t.left + 140 && y > 28 && y < 214) || (x >= t.right - 112 && x <= t.right + 4 && y > 120 && y < 196);
+  };
   const choice = (x, y) =>
     COPY.menu.findIndex((_, i) => {
-      const [cx, cy] = choiceAt(i);
-      return x > cx - 18 && x < cx + 158 && Math.abs(y - cy) < 11;
+      const [cx, cy, col] = choiceAt(i);
+      return x > cx - 8 && x < cx + col - 10 && Math.abs(y - cy) < 11;
     });
 
   /* type: "move" | "tap" | "leave"; x, y in the W x H space; kind: "mouse" | "touch" | "pen". Returns true over something clickable. */
@@ -522,20 +542,15 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
       return true;
     }
     if (state === "select") {
-      const i = zone(x, y);
-      if (i < 0) return false;
-      if (kind === "touch") {
-        if (type !== "tap") return true;
-        /* no hover on touch: the first tap looks, the second one picks */
-        if (armed !== i) {
-          armed = i;
-          setFocus(i);
-          return true;
-        }
+      const dir = pageAt(x, y);
+      if (dir) {
+        if (type === "tap") setFocus((focus + dir + CREW.length) % CREW.length);
+        return true;
       }
-      setFocus(i);
-      if (type === "tap") pick();
-      return true;
+      if (onCopy(x, y)) return false;
+      const onCharacter = x > 145 && x < 270 && y > 40 && y < 250;
+      if (type === "tap" && onCharacter) pick();
+      return onCharacter;
     }
     if (state === "talk") {
       if (!talk.menu) {
@@ -564,7 +579,6 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
     if (state === "select") {
       if (side) {
         setFocus((focus + side + CREW.length) % CREW.length);
-        armed = focus;
       } else if (ok) pick();
       else if (k === "Escape") {
         sfx.back();
@@ -591,7 +605,6 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
     go(ready ? "title" : "loading");
     last = 0;
     talk = null;
-    armed = -1;
     if (stage) stage.rest();
   }
 

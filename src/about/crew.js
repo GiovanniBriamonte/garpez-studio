@@ -7,63 +7,76 @@
 
 export const CREW = [
   {
-    name: "GAR",
+    name: "GYO",
     role: "ART DIRECTOR",
     tagline: "Make the logo smaller.",
     /* label, value 0-100 */
     skills: [
       ["TASTE", 96],
       ["KERNING", 99],
-      ["PATIENCE", 31],
-      ["SMILING", 8],
+      ["PATIENCE", 8],
+      ["SMILING", 99],
     ],
-    email: "hello@garpez.studio",
+    email: "ciao@garpez.studio",
     model: "p1.glb",
     /* Exact clip names inside the model. Leave empty to auto-detect: the idle is the clip named like
        idle/breath/stand (else the first one), the select is one named like select/cheer/victory/win/
        wave/thumb/jump/dance (else any other clip; with none, the character just hops). */
-    clips: { idle: "", select: "" },
+    clips: { idle: "walk", select: "run" },
     /* Optional second file, for tools that export one animation per file: its first clip becomes the select. */
     selectModel: "",
     talk: {
-      intro: "You picked me. Bold. I'm GAR. I make things look expensive and I rarely smile about it.",
+      intro: "You picked me. I'm GYO. I smile at everything, and I have no patience for the rest.",
       who: "We're Garpez, a branding studio. Two people, one television, zero account managers.",
       what: "Identities, logos, type, motion. Everything a brand needs to stop looking like its competitors.",
-      work: "Good. Tell me about your brand. I answer faster than I smile.",
+      work: "Good. Tell me about your brand. I'll smile. Don't make me wait.",
       mailed: "Mail's open. If nothing happened, write to {email} and I'll pretend I didn't notice.",
     },
   },
   {
-    name: "PEZ",
+    name: "DREW",
     role: "BRAND STRATEGIST",
     tagline: "Trust me, it's a concept.",
     skills: [
       ["IDEAS", 95],
       ["CHARISMA", 91],
       ["DEADLINES", 44],
-      ["HANDS IN POCKETS", 100],
+      ["YES, AND", 100],
     ],
-    email: "hello@garpez.studio",
+    email: "ciao@garpez.studio",
     model: "p2.glb",
-    clips: { idle: "", select: "" },
+    clips: { idle: "walk", select: "run" },
     selectModel: "",
     talk: {
-      intro: "Great choice! I'm PEZ. I ask 'why' until the brand finally makes sense.",
+      intro: "Great choice! I'm DREW. I ask 'why' until the brand finally makes sense.",
       who: "Garpez is a branding studio. He frowns at the kerning, I talk to humans. Somehow it works.",
       what: "Strategy, naming, identity, and the occasional television you can play with. You're inside one.",
       work: "Love that. Tell me what you're building and I'll bring the ideas. And the other guy.",
       mailed: "Mail's open! If nothing happened, write to {email}. I check it between two coffees.",
     },
   },
+  {
+    /* Tekken-style locked slot: visible, not selectable. Unlocks by commissioning a project. */
+    locked: true,
+    name: "????",
+    role: "LOCKED",
+    tagline: "The good one is behind the lock.",
+    skills: [],
+    email: "",
+    model: "",
+    clips: { idle: "", select: "" },
+    selectModel: "",
+    talk: null,
+  },
 ];
 
 export const COPY = {
   loading: "NOW LOADING",
   title: "GARPEZ",
-  subtitle: "ABOUT US: THE GAME",
+  subtitle: "CHOOSE YOUR NEXT DESIGNER",
   start: "PRESS START",
   startTouch: "TAP TO START",
-  footer: "2 PLAYERS. BOTH OURS.",
+  lockedLine: "DO A PROJECT TO UNLOCK",
   choose: "CHOOSE YOUR GARPEZ",
   /* key prompts under the character select: the keys, then what they do ("<" and ">" draw as arrows) */
   hints: [

@@ -1,6 +1,6 @@
-import Television from './television';
-import { aboutModels, videoChannels } from './channels';
+import Landing from './landing';
+import '../styles/landing.css';
 
 export default function Page() {
-  return <Television videos={videoChannels()} models={aboutModels()} />;
+  return <Landing />;
 }

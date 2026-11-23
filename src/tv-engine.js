@@ -1,11 +1,12 @@
 import { createAudio } from "./audio.js";
 import { createAbout } from "./about/about-channel.js";
+import { createCommercial } from "./commercial/commercial-channel.js";
 import geo from "./tv-geometry.json";
 
 const SPRITE = geo.sprite;
 /* How much the tube glass bends the picture; shared by the shader and the pointer mapping. */
-const CURVE_X = 0.028,
-  CURVE_Y = 0.04;
+const CURVE_X = 0.009,
+  CURVE_Y = 0.013;
 function family(variable, fallback) {
   const stack = getComputedStyle(document.documentElement)
     .getPropertyValue(variable)
@@ -43,7 +44,10 @@ export function mountTv(root, videos = [], models = []) {
   const rnd = (a, b) => a + Math.random() * (b - a);
   const tri = (x, r) => r - Math.abs((((x % (2 * r)) + 2 * r) % (2 * r)) - r);
   const pad = (n) => String(n).padStart(2, "0");
-  const F_PIX = family("--font-vt", '"VT323", ui-monospace, monospace');
+  const F_PIX = family("--font-geist-pixel-square", "ui-monospace, monospace");
+  const F_SANS = family("--font-geist-sans", "ui-sans-serif, system-ui, sans-serif");
+  const F_MONO = family("--font-geist-mono", "ui-monospace, monospace");
+  const F_AD = family("--font-fredoka", "ui-rounded, ui-sans-serif, system-ui, sans-serif");
   const F_DOT = family("--font-doto", "ui-monospace, monospace");
   const F_UI = family("--font-chakra", "ui-sans-serif, system-ui, sans-serif");
   /* Definition of the picture: the canvases hold W*S x H*S pixels, drawing stays in W x H. */
@@ -85,22 +89,23 @@ export function mountTv(root, videos = [], models = []) {
       c.fillRect(x + cx * cell, y + cy * cell, cell, cell);
     }
   }
+  const OPEN = "YOUR PROJECT";
   function noSignal(c, now) {
     snow(c, 1);
     c.fillStyle = "rgba(0,0,0,.55)";
-    c.fillRect(W * 0.2, H * 0.4, W * 0.6, H * 0.2);
-    c.font = "44px " + F_PIX;
+    c.fillRect(W * 0.08, H * 0.4, W * 0.84, H * 0.2);
+    c.font = "500 40px " + F_PIX;
     c.textAlign = "center";
     c.textBaseline = "middle";
     const j = Math.sin(now / 90) * 2;
     c.globalCompositeOperation = "lighter";
     c.fillStyle = "#f0f";
-    c.fillText("NO SIGNAL", W / 2 - 3 + j, H / 2);
+    c.fillText(OPEN, W / 2 - 3 + j, H / 2);
     c.fillStyle = "#0f6";
-    c.fillText("NO SIGNAL", W / 2 + 3 - j, H / 2 + 2);
+    c.fillText(OPEN, W / 2 + 3 - j, H / 2 + 2);
     c.globalCompositeOperation = "source-over";
     c.fillStyle = "#fff";
-    c.fillText("NO SIGNAL", W / 2, H / 2 + 1);
+    c.fillText(OPEN, W / 2, H / 2 + 1);
   }
   function videoChannel(el) {
     return (c, now) => {
@@ -131,7 +136,7 @@ export function mountTv(root, videos = [], models = []) {
       return { name, draw: videoChannel(v), video: v };
     }),
     { name: "SCREENSAVER", draw: screensaver },
-    { name: "NO SIGNAL", draw: noSignal, amb: "static" },
+    { name: OPEN, draw: noSignal, amb: "static" },
     {
       name: "INFO",
       draw: (c) => {
@@ -141,20 +146,32 @@ export function mountTv(root, videos = [], models = []) {
       info: true,
     },
   ];
-  /* ABOUT is always channel 4, wherever the videos end. It is drawn sharp enough for the size of the screen. */
+  /* Sharp enough for the type on COMMERCIAL and ABOUT. */
+  const picture = Math.min(
+    3,
+    Math.max(2, Math.ceil((screen.clientWidth * Math.min(window.devicePixelRatio || 1, 2)) / W)),
+  );
+  /* COMMERCIAL takes the slot in front of ABOUT. With the two videos on air it is channel 3;
+     ABOUT stays channel 4, wherever the videos end. */
+  const commercial = createCommercial({
+    W,
+    H,
+    scale: picture,
+    fonts: { pix: F_PIX, display: F_AD, sans: F_SANS, mono: F_MONO },
+    sfx,
+    reduce,
+  });
   const about = createAbout({
     W,
     H,
-    scale: Math.min(
-      3,
-      Math.max(2, Math.ceil((screen.clientWidth * Math.min(window.devicePixelRatio || 1, 2)) / W)),
-    ),
+    scale: picture,
     sprite: SPRITE,
     fonts: { ui: F_UI, dot: F_DOT },
     sfx,
     reduce,
     models,
   });
+  CH.splice(Math.min(2, CH.length), 0, commercial);
   CH.splice(Math.min(3, CH.length), 0, about);
 
   const nimg = ctx.createImageData(W, H),
@@ -260,22 +277,24 @@ export function mountTv(root, videos = [], models = []) {
   }
   function osd(c) {
     c.save();
-    c.font = "34px " + F_PIX;
     c.textAlign = "right";
     c.textBaseline = "top";
+    c.font = "500 26px " + F_PIX;
     const w1 = c.measureText("CH 00").width;
-    c.font = "22px " + F_PIX;
-    const bw = Math.max(w1, c.measureText(CH[ch].name).width) + 16;
+    c.font = "500 16px " + F_PIX;
+    const bw = Math.max(w1, c.measureText(CH[ch].name).width) + 14;
+    const x = W - 18,
+      y = 20;
     c.fillStyle = "rgba(0,0,0,.78)";
-    c.fillRect(W - 8 - bw, 8, bw, 60);
-    c.font = "34px " + F_PIX;
+    c.fillRect(x - bw, y, bw, 48);
+    c.font = "500 26px " + F_PIX;
     c.fillStyle = "#39ff5a";
-    c.fillText("CH " + pad(ch + 1), W - 16, 10);
-    c.font = "22px " + F_PIX;
-    c.fillText(CH[ch].name, W - 16, 42);
+    c.fillText("CH " + pad(ch + 1), x - 8, y + 3);
+    c.font = "500 16px " + F_PIX;
+    c.fillText(CH[ch].name, x - 8, y + 28);
     if (muted) {
       c.textAlign = "left";
-      c.fillText("MUTE", 14, 14);
+      c.fillText("MUTE", 24, 20);
     }
     c.restore();
   }
@@ -742,7 +761,11 @@ export function mountTv(root, videos = [], models = []) {
       const m = stack.match(/["']([^"']+)["']/);
       return m ? m[1] : stack.split(",")[0].trim();
     };
-    document.fonts.load(`20px "${first(F_PIX)}"`);
+    document.fonts.load(`500 20px "${first(F_PIX)}"`);
+    document.fonts.load(`700 64px "${first(F_AD)}"`);
+    document.fonts.load(`800 72px "${first(F_SANS)}"`);
+    document.fonts.load(`500 16px "${first(F_SANS)}"`);
+    document.fonts.load(`800 80px "${first(F_MONO)}"`);
     document.fonts.load(`900 40px "${first(F_DOT)}"`);
     for (const style of ["500", "700", "italic 500", "italic 700"])
       document.fonts.load(`${style} 20px "${first(F_UI)}"`);

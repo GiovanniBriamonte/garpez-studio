@@ -1,11 +1,16 @@
 import type { CSSProperties } from 'react';
 import type { Metadata } from 'next';
-import { Chakra_Petch, Doto, Fredoka, VT323 } from 'next/font/google';
+import { GeistMono } from 'geist/font/mono';
+import { GeistPixelSquare } from 'geist/font/pixel/square';
+import { GeistSans } from 'geist/font/sans';
+import { Chakra_Petch, Doto, Fredoka, Instrument_Serif } from 'next/font/google';
 import geo from '../src/tv-geometry.json';
+import Shell from './shell';
 import '../styles/tv.css';
+import '../styles/shell.css';
 
-const vt = VT323({ weight: '400', subsets: ['latin'], variable: '--font-vt', display: 'swap' });
 const fredoka = Fredoka({ weight: '700', subsets: ['latin'], variable: '--font-fredoka', display: 'swap' });
+const serif = Instrument_Serif({ weight: '400', subsets: ['latin'], variable: '--font-serif', display: 'swap' });
 const doto = Doto({ weight: '900', subsets: ['latin'], variable: '--font-doto', display: 'swap' });
 /* the menus of the ABOUT channel */
 const chakra = Chakra_Petch({
@@ -17,8 +22,9 @@ const chakra = Chakra_Petch({
 });
 
 export const metadata: Metadata = {
-  title: 'garpez.tv',
+  title: 'Garpez Co. — Creative studio',
   description: 'Garpez is a branding studio.',
+  icons: { icon: '/system/favicon.svg' },
 };
 
 const tvStyle = {
@@ -39,10 +45,12 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html
       lang="en"
-      className={`${vt.variable} ${fredoka.variable} ${doto.variable} ${chakra.variable}`}
+      className={`${GeistPixelSquare.variable} ${GeistSans.variable} ${GeistMono.variable} ${fredoka.variable} ${doto.variable} ${chakra.variable} ${serif.variable}`}
       style={tvStyle}
     >
-      <body>{children}</body>
+      <body>
+        <Shell>{children}</Shell>
+      </body>
     </html>
   );
 }

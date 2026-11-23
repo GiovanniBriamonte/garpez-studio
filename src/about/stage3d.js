@@ -16,33 +16,48 @@ const ACTORS = 0,
   FLOOR = 1,
   GLOSS = 2;
 
+/* The locked slot: a silhouette, nothing to read on it. */
+const SHADOW = {
+  top: "#0c0c10", sleeve: "#0c0c10", legs: "#0c0c10", shoe: "#0c0c10", sole: "#0c0c10",
+  skin: "#0c0c10", hair: "#0c0c10", hairW: 1.05, blank: true,
+};
 /* Mannequins standing in for the characters whose model has not been delivered yet. */
 const DUMMY = [
   {
-    top: "#1f1f24",
-    sleeve: "#1f1f24",
-    stripe: "#d8d1c2",
+    top: "#1c1c20",
+    sleeve: "#1c1c20",
+    stripe: "#ece7dc",
+    checks: true,
     legs: "#2a2a30",
     shoe: "#16161a",
+    lace: "#d8d4cc",
     sole: "#cfcfcf",
     skin: "#d4a48a",
     hair: "#3a2a24",
     hairW: 1,
     quiff: true,
+    stubble: true,
+    hoops: true,
+    brow: -0.4,
   },
   {
-    top: "#3f6bc8",
-    sleeve: "#b8b8be",
-    cuff: "#3f6bc8",
-    legs: "#7fa0cf",
-    shoe: "#5a78b8",
-    sole: "#efefef",
+    top: "#3d68c4",
+    sleeve: "#b7b7bc",
+    cuff: "#3d68c4",
+    legs: "#8eafd4",
+    baggy: true,
+    shoe: "#f2f2f2",
+    lace: "#c5c8d0",
+    sole: "#dedee2",
     skin: "#d4a48a",
-    hair: "#3a2a24",
-    hairW: 1.12,
+    hair: "#4a3428",
+    hairW: 1.16,
     curls: true,
+    fringe: true,
     glasses: true,
     smile: true,
+    beard: true,
+    brow: 0.28,
     both: true,
   },
 ];
@@ -73,6 +88,10 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
   const rim = new THREE.DirectionalLight(0xa8c0ff, 1.8);
   rim.position.set(2.5, 3.2, -4.5);
   scene.add(key, fill, rim);
+  const { RoomEnvironment } = await import("three/addons/environments/RoomEnvironment.js");
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
 
   const paintTexture = (size, paint) => {
     const cv = document.createElement("canvas");
@@ -225,9 +244,12 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
       o.frustumCulled = false;
       const swap = (m) => {
         if (m.map) m.map.anisotropy = 8;
-        return lit({
+        const hasMetalMap = !!m.metalnessMap;
+        const params = {
           map: m.map || null,
           normalMap: m.normalMap || null,
+          metalnessMap: m.metalnessMap || null,
+          roughnessMap: m.roughnessMap || null,
           color: m.color || 0xffffff,
           transparent: m.transparent,
           opacity: m.opacity,
@@ -235,9 +257,16 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
           side: m.side,
           vertexColors: m.vertexColors,
           flatShading: false,
-          roughness: 0.55,
-          metalness: 0.05,
-        });
+          roughness: m.roughness !== undefined ? m.roughness : 0.55,
+          /* a metalness map already paints which parts are metal; a bare factor of 1 with no map turns the whole mesh into a black cutout */
+          metalness: hasMetalMap ? (m.metalness !== undefined ? m.metalness : 1) : Math.min(m.metalness !== undefined ? m.metalness : 0.05, 0.35),
+        };
+        if (!hasMetalMap && params.metalness > 0.2 && params.map) {
+          params.emissiveMap = params.map;
+          params.emissive = new THREE.Color(0xffffff);
+          params.emissiveIntensity = 0.55;
+        }
+        return lit(params);
       };
       o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
     });
@@ -303,59 +332,86 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
       tube = (top, bottom, height) => new THREE.CylinderGeometry(top, bottom, height, 28);
     const DARK = "#141418";
 
+    const legR = look.baggy ? 0.155 : 0.13;
     for (const s of [-1, 1]) {
-      add(root, ball(0.1), look.sole, s * 0.15, 0.036, 0.06, 1, 0.36, 1.9);
-      add(root, ball(0.095), look.shoe, s * 0.15, 0.088, 0.05, 1, 0.62, 1.75);
-      add(root, tube(0.135, 0.165, 0.84), look.legs, s * 0.15, 0.52, 0);
+      add(root, ball(0.1), look.sole, s * 0.15, 0.03, 0.07, 1.05, 0.32, 2);
+      add(root, ball(0.09), look.shoe, s * 0.15, 0.09, 0.05, 1, 0.55, 1.7);
+      if (look.lace) add(root, new THREE.BoxGeometry(0.02, 0.012, 0.12), look.lace, s * 0.15, 0.1, 0.14);
+      add(root, tube(legR, legR + 0.02, 0.82), look.legs, s * 0.15, 0.52, 0);
     }
-    add(root, tube(0.28, 0.29, 0.12), look.legs, 0, 0.9, 0, 1, 1, 0.64);
+    add(root, tube(0.27, 0.29, 0.11), look.legs, 0, 0.9, 0, 1, 1, 0.62);
 
     const upper = new THREE.Group();
     root.add(upper);
-    add(upper, capsule(0.195, 0.3), look.top, 0, 1.24, 0, 1.38, 1, 0.9);
-    add(upper, tube(0.275, 0.28, 0.09), look.top, 0, 0.97, 0, 1, 1, 0.66);
-    add(upper, tube(0.06, 0.07, 0.1), look.skin, 0, 1.6, 0);
+    add(upper, capsule(0.2, 0.28), look.top, 0, 1.25, 0, 1.42, 1, 0.82);
+    add(upper, tube(0.3, 0.28, 0.08), look.top, 0, 0.98, 0, 1, 1, 0.6);
+    add(upper, tube(0.055, 0.065, 0.08), look.skin, 0, 1.58, 0);
     const arms = [-1, 1].map((s) => {
       const arm = new THREE.Group();
-      arm.position.set(s * 0.3, 1.47, 0);
+      arm.position.set(s * 0.32, 1.46, 0);
       upper.add(arm);
-      add(arm, capsule(0.072, 0.5), look.sleeve, 0, -0.3, 0);
-      if (look.cuff) add(arm, capsule(0.088, 0.14), look.cuff, 0, -0.12, 0);
-      if (look.stripe) add(arm, new THREE.BoxGeometry(0.012, 0.5, 0.05), look.stripe, s * 0.074, -0.3, 0);
-      add(arm, ball(0.068), look.skin, 0, -0.66, 0);
+      add(arm, capsule(0.068, 0.48), look.sleeve, 0, -0.28, 0);
+      if (look.cuff) add(arm, capsule(0.082, 0.12), look.cuff, 0, -0.1, 0);
+      if (look.checks) {
+        for (let i = 0; i < 5; i++) {
+          add(arm, new THREE.BoxGeometry(0.018, 0.07, 0.04), i % 2 ? look.stripe : "#141418", s * 0.066, -0.1 - i * 0.085, 0);
+        }
+      }
+      add(arm, ball(0.062), look.skin, 0, -0.6, 0.01);
       return arm;
     });
 
     const head = new THREE.Group();
-    head.position.set(0, 1.74, 0);
+    head.position.set(0, 1.72, 0);
     upper.add(head);
-    add(head, ball(0.148), look.skin, 0, 0, 0, 0.92, 1.08, 0.98);
+    add(head, ball(0.145), look.skin, 0, 0, 0, 0.9, 1.12, 0.96);
+    if (look.stubble) add(head, ball(0.09), "#b8886e", 0, -0.04, 0.02, 0.95, 0.55, 0.7);
     const hair = add(
       head,
-      new THREE.SphereGeometry(0.16, 36, 18, 0, TAU, 0, Math.PI * 0.52),
+      new THREE.SphereGeometry(0.155, 36, 18, 0, TAU, 0, Math.PI * 0.52),
       look.hair,
       0,
-      0.02,
-      -0.016,
-      0.97 * look.hairW,
-      1.1,
+      0.03,
+      -0.02,
+      0.98 * look.hairW,
       1.05,
+      1.02,
     );
-    hair.rotation.x = -0.36;
-    if (look.quiff) add(head, ball(0.05), look.hair, 0.012, 0.142, 0.092, 1.5, 0.7, 1.1);
+    hair.rotation.x = -0.4;
+    if (look.quiff) {
+      add(head, ball(0.055), look.hair, 0.01, 0.15, 0.07, 1.7, 0.85, 1.15);
+      add(head, ball(0.04), look.hair, 0.02, 0.12, 0.1, 1.2, 0.6, 0.8);
+    }
+    if (look.fringe) add(head, ball(0.05), look.hair, 0, 0.08, 0.1, 1.5, 0.45, 0.7);
     if (look.curls) {
-      for (const s of [-1, 1]) add(head, ball(0.075), look.hair, s * 0.125, 0.0, -0.045);
-      add(head, ball(0.1), look.hair, 0, -0.02, -0.1);
+      for (const s of [-1, 1]) add(head, ball(0.07), look.hair, s * 0.12, 0.02, -0.02);
+      add(head, ball(0.09), look.hair, 0, 0.02, -0.1);
     }
+    if (look.beard) add(head, ball(0.04), look.hair, 0, -0.09, 0.1, 1.3, 0.7, 0.6);
     if (look.glasses) {
-      for (const s of [-1, 1]) add(head, new THREE.TorusGeometry(0.04, 0.007, 10, 28), DARK, s * 0.056, 0.012, 0.138);
-      add(head, new THREE.BoxGeometry(0.03, 0.008, 0.008), DARK, 0, 0.016, 0.142);
+      for (const s of [-1, 1]) add(head, new THREE.TorusGeometry(0.042, 0.008, 10, 28), DARK, s * 0.055, 0.02, 0.125);
+      add(head, new THREE.BoxGeometry(0.028, 0.008, 0.008), DARK, 0, 0.024, 0.132);
     }
-    for (const s of [-1, 1]) add(head, ball(0.014), DARK, s * 0.056, 0.012, 0.132);
-    if (look.smile) {
-      const smile = add(head, new THREE.TorusGeometry(0.036, 0.006, 8, 18, Math.PI), DARK, 0, -0.045, 0.128);
-      smile.rotation.z = Math.PI;
-    } else add(head, new THREE.BoxGeometry(0.05, 0.007, 0.01), DARK, 0, -0.065, 0.137);
+    if (look.hoops) {
+      for (const s of [-1, 1]) add(head, new THREE.TorusGeometry(0.018, 0.004, 6, 12), "#c9c3b4", s * 0.135, -0.02, 0.02);
+    }
+    if (!look.blank) {
+      const WHITE = "#f4efe8";
+      for (const s of [-1, 1]) {
+        add(head, ball(0.02), WHITE, s * 0.05, 0.02, 0.125, 1, 0.75, 0.45);
+        add(head, ball(0.011), DARK, s * 0.052, 0.018, 0.138);
+      }
+      add(head, ball(0.018), look.skin, 0, -0.01, 0.13, 0.7, 0.8, 0.8);
+      const brow = look.brow || 0;
+      for (const s of [-1, 1]) {
+        const b = add(head, new THREE.BoxGeometry(0.04, 0.008, 0.01), look.hair, s * 0.05, 0.055, 0.128);
+        b.rotation.z = s * brow;
+      }
+      if (look.smile) {
+        const smile = add(head, new THREE.TorusGeometry(0.032, 0.006, 8, 16, Math.PI), "#8d4a42", 0, -0.055, 0.118);
+        smile.rotation.z = Math.PI;
+      } else add(head, new THREE.BoxGeometry(0.04, 0.007, 0.008), "#8d4a42", 0, -0.06, 0.128);
+    }
 
     root.scale.setScalar(TALL / 1.93);
     return { root, upper, arms, head, both: !!look.both };
@@ -415,9 +471,40 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
         console.warn(`ABOUT: could not load ${crew[i].model}, using the mannequin`, e);
       }
     }
-    if (!body) body = dummy(DUMMY[i % DUMMY.length], lit);
+    if (!body) body = dummy(crew[i].locked ? SHADOW : DUMMY[i % DUMMY.length], lit);
     hop.add(body.root);
-    chars.push({ ...body, x: spin.position.x, spin, hop, pool, mats, level: 0, shown: -1, rot: 0, t: i * 1.7, act: null });
+    chars.push({
+      ...body,
+      x: spin.position.x,
+      home: spin.position.x,
+      spin,
+      hop,
+      pool,
+      mats,
+      level: 0,
+      shown: -1,
+      rot: 0,
+      t: i * 1.7,
+      act: null,
+    });
+  }
+
+  /* Changing character: the one on stage spins and shrinks away, then the next spins up into place. */
+  let who = 0,
+    swap = null;
+  function present(i) {
+    if (!swap) return i === who ? { s: 1, spin: 0, show: true } : { s: 0, spin: 0, show: false };
+    if (i === swap.from && swap.t < swap.out) {
+      const k = swap.t / swap.out;
+      return { s: Math.max(0, 1 - k * k), spin: swap.dir * k * Math.PI * 2.6, show: k < 0.97 };
+    }
+    const start = swap.out * 0.7;
+    if (i === swap.to && swap.t >= start) {
+      const k = Math.min(1, (swap.t - start) / swap.inn),
+        e = 1 - Math.pow(1 - k, 3);
+      return { s: e, spin: swap.dir * (1 - e) * Math.PI * 1.7, show: e > 0.02 };
+    }
+    return { s: 0, spin: 0, show: false };
   }
 
   function shade(ch) {
@@ -460,16 +547,17 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
     toEye = eye.clone(),
     toAim = aim.clone(),
     probe = new THREE.Vector3();
-  function frame(mode, x) {
+  function frame(mode) {
+    /* select keeps the character right of centre, so the skill sheet on the left stays clear of it */
     if (mode === "select") {
-      toEye.set(0, 1.1, 5.7);
+      toEye.set(0, 1.02, 5.05);
       toAim.set(0, 0.95, 0);
     } else if (mode === "chosen") {
-      toEye.set(x, 1.05, 4.9);
-      toAim.set(x, 0.95, 0);
+      toEye.set(0, 1.02, 4.7);
+      toAim.set(0, 0.95, 0);
     } else if (mode === "talk") {
-      toEye.set(x + 0.45, 1.35, 3.2);
-      toAim.set(x + 0.45, 1.25, 0);
+      toEye.set(0, 1.18, 4.15);
+      toAim.set(0, 1.05, 0);
     } else {
       toEye.set(0, 1.05, 5.6);
       toAim.set(0, 0.85, 0);
@@ -499,7 +587,36 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
     canvas: renderer.domElement,
     /** Advances and draws one frame. mode: "title" | "select" | "chosen" | "talk". */
     update(dt, { mode, focus, picked }) {
-      frame(mode, chars[picked].x);
+      const solo = mode !== "title",
+        target = mode === "select" ? focus : picked;
+      if (mode === "select") {
+        const current = swap ? swap.to : who;
+        if (target !== current) {
+          let delta = target - current;
+          const n = chars.length;
+          delta = ((delta % n) + n) % n;
+          if (delta > n / 2) delta -= n;
+          swap = {
+            from: current,
+            to: target,
+            dir: delta >= 0 ? 1 : -1,
+            t: 0,
+            out: reduce ? 0.01 : 0.5,
+            inn: reduce ? 0.01 : 0.42,
+          };
+        }
+        if (swap) {
+          swap.t += dt;
+          if (swap.t >= swap.out * 0.7 + swap.inn) {
+            who = swap.to;
+            swap = null;
+          }
+        }
+      } else {
+        swap = null;
+        who = target;
+      }
+      frame(mode);
       const k = reduce ? 1 : 1 - Math.exp(-dt * (mode === "chosen" ? 4 : 7)),
         k2 = reduce ? 1 : 1 - Math.exp(-dt * 10);
       eye.lerp(toEye, k);
@@ -507,16 +624,38 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
       camera.position.copy(eye);
       camera.lookAt(aim);
       chars.forEach((ch, i) => {
-        const on = mode === "select" ? i === focus : mode !== "title" && i === picked;
-        ch.level += ((on ? 1 : mode === "select" ? 0.42 : 0) - ch.level) * k2;
+        ch.spin.position.x += ((solo ? 0 : ch.home) - ch.spin.position.x) * k2;
+        ch.pool.position.x = ch.spin.position.x;
+        if (mode === "select") {
+          const v = present(i);
+          ch.hop.scale.setScalar(v.s);
+          ch.hop.rotation.y = v.spin;
+          ch.hop.visible = v.show;
+          ch.spin.visible = ch.pool.visible =
+            v.show || (!swap ? i === who : swap.t < swap.out ? i === swap.from : i === swap.to);
+          if (v.show) ch.level = 1;
+          else ch.level += (0 - ch.level) * k2;
+        } else if (solo) {
+          const on = i === target;
+          ch.hop.scale.setScalar(on ? 1 : 0);
+          ch.hop.rotation.y += (0 - ch.hop.rotation.y) * k2;
+          ch.hop.visible = on;
+          ch.spin.visible = on;
+          ch.pool.visible = on && mode !== "talk";
+          ch.level += ((on ? 1 : 0) - ch.level) * k2;
+        } else {
+          ch.hop.scale.setScalar(1);
+          ch.hop.rotation.y = 0;
+          ch.hop.visible = ch.spin.visible = ch.pool.visible = true;
+          ch.level += (0.15 - ch.level) * k2;
+        }
         shade(ch);
-        if (on && mode === "select" && !reduce) ch.rot += dt * 0.85;
+        if (i === who && mode === "select" && !swap && !reduce) ch.rot += dt * 0.85;
         else {
           ch.rot -= Math.round(ch.rot / TAU) * TAU;
           ch.rot += ((mode === "talk" ? 0.15 : 0) - ch.rot) * k2;
         }
         ch.spin.rotation.y = ch.rot;
-        ch.spin.visible = ch.pool.visible = mode !== "talk" || i === picked;
         pose(ch, dt);
       });
       render();
@@ -534,16 +673,22 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
     },
     /** Everyone back to idle, facing front. */
     rest() {
+      swap = null;
+      who = 0;
       for (const ch of chars) {
         ch.act = null;
         ch.rot = 0;
+        ch.spin.position.x = ch.home;
+        ch.hop.scale.setScalar(1);
+        ch.hop.rotation.y = 0;
+        ch.hop.visible = true;
         if (ch.cheer) ch.cheer.stop();
         if (ch.idle) ch.idle.reset().setEffectiveWeight(1).play();
       }
     },
     /** Where a point `height` above character `i`'s floor lands on the TV picture, as [x, y]. */
     at(i, height) {
-      probe.set(chars[i].x, height, 0).project(camera);
+      probe.set(chars[i].spin.position.x, height, 0).project(camera);
       return [(probe.x * 0.5 + 0.5) * W, (0.5 - probe.y * 0.5) * H];
     },
     dispose() {
@@ -554,7 +699,7 @@ export async function createStage({ W, H, scale, crew, models, reduce, palette }
           m.dispose();
         }
       });
-      renderer.dispose();
+      if (scene.environment) scene.environment.dispose();
       renderer.forceContextLoss();
     },
   };

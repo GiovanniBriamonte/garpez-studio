@@ -63,6 +63,18 @@ export function createAudio(isMuted) {
     },
     back() { if (!audio()) return; const t = ac.currentTime; tone('square', 520, 390, .08, .05, t); tone('square', 390, 260, .12, .05, t + .07); },
     tick() { if (!audio()) return; tone('square', 1400, 1400, .02, .02); },
+    /* the commercial channel: a short ident, then a blip when the price lands */
+    sting() {
+      if (!audio()) return;
+      const t = ac.currentTime;
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone('square', f, f, .11, .04, t + i * .075));
+    },
+    coin() {
+      if (!audio()) return;
+      const t = ac.currentTime;
+      tone('square', 1318.5, 1568, .06, .03, t);
+      tone('square', 1975.5, 2093, .1, .028, t + .06);
+    },
   };
 
   return {

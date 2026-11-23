@@ -6,7 +6,7 @@ body {
   height: 100%;
   margin: 0;
 }
-body {
+body.tv-mode {
   background: linear-gradient(var(--tv-top) 50%, var(--tv-bottom) 50%);
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
@@ -15,8 +15,14 @@ body {
 }
 .wrap {
   position: fixed;
-  inset: 0;
-  --fit: min(max(100vw, 177.78vh), 206vh, 200vw);
+  top: var(--header-h, 0px);
+  right: 0;
+  bottom: var(--footer-h, 0px);
+  left: 0;
+  overflow: hidden;
+  background: linear-gradient(var(--tv-top) 50%, var(--tv-bottom) 50%);
+  --avail-h: calc(100vh - var(--header-h, 0px) - var(--footer-h, 0px));
+  --fit: min(100vw, calc(var(--avail-h) / 0.5625));
   --w: var(--fit);
 }
 /* large screens: step the set back so the gradient has room around it */
@@ -85,6 +91,7 @@ canvas.spill {
   top: var(--sy);
   width: var(--sw);
   height: var(--sh);
+  container-type: inline-size;
   -webkit-mask: url(/assets/screenmask.png) center / 100% 100% no-repeat;
   mask: url(/assets/screenmask.png) center / 100% 100% no-repeat;
   mix-blend-mode: screen;
@@ -205,7 +212,8 @@ canvas#gl {
   display: none;
   position: fixed;
   left: 50%;
-  bottom: calc(40px + env(safe-area-inset-bottom));
+  z-index: 35;
+  bottom: calc(var(--footer-h, 0px) + 12px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   gap: 10px;
   padding: 10px;
@@ -253,18 +261,7 @@ canvas#gl {
 }
 
 .copy {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(10px + env(safe-area-inset-bottom));
-  text-align: center;
-  font:
-    900 13px/1 var(--font-doto),
-    ui-monospace,
-    monospace;
-  letter-spacing: 0.12em;
-  color: #1b1b1b;
-  pointer-events: none;
+  display: none;
 }
 
 .infoch {
@@ -275,12 +272,11 @@ canvas#gl {
   flex-direction: column;
   justify-content: space-between;
   color: #fff;
-  font-family: var(--font-fredoka), "Arial Rounded MT Bold", sans-serif;
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: calc(var(--w) * 0.0178);
-  line-height: 1.08;
-  letter-spacing: 0.01em;
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 4.6cqw;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
   text-shadow:
     0.05em 0 0 rgba(255, 0, 200, 0.5),
     -0.05em 0 0 rgba(0, 255, 220, 0.4);
@@ -291,9 +287,14 @@ canvas#gl {
 .infoch p {
   margin: 0;
 }
+.infoch > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.8em;
+}
 .infoch a,
 .infoch span.l {
-  display: block;
   color: #fff;
   text-decoration: none;
 }
@@ -302,3 +303,4 @@ canvas#gl {
   color: #f2c21c;
   outline: none;
 }
+
