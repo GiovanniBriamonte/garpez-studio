@@ -307,6 +307,8 @@ export function mountTv(root, videos = [], models = []) {
       gl = glc.getContext("webgl", {
         antialias: false,
         premultipliedAlpha: false,
+        /* the pixel-wave transition copies this canvas */
+        preserveDrawingBuffer: true,
       });
     } catch (e) {
       gl = null;

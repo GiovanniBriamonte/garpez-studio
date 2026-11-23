@@ -4,6 +4,11 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { mountTv } from '../src/tv-engine';
 import geo from '../src/tv-geometry.json';
 import type { VideoChannel } from './channels';
+import { onReveal, takeArrival } from '../src/transition/store';
+
+/* set to false to arrive on /tv without the zoom-out from the screen */
+const ARRIVE_ZOOM = true;
+const ARRIVE_MS = 1100;
 
 export default function Television({ videos, models }: { videos: VideoChannel[]; models: string[] }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -12,6 +17,52 @@ export default function Television({ videos, models }: { videos: VideoChannel[];
     const body = document.body;
     body.classList.add('tv-mode');
     return () => body.classList.remove('tv-mode');
+  }, []);
+
+  /* coming from the landing dive: start inside the screen and pull back */
+  useLayoutEffect(() => {
+    const arrival = takeArrival();
+    const root = rootRef.current;
+    if (!ARRIVE_ZOOM || arrival !== 'dive' || !root) return;
+    const wrap = root.querySelector<HTMLElement>('.wrap');
+    const screen = root.querySelector<HTMLElement>('#screen');
+    if (!wrap || !screen) return;
+    const w = wrap.getBoundingClientRect();
+    const s = screen.getBoundingClientRect();
+    if (s.width < 2 || s.height < 2) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cx = s.left + s.width / 2;
+    const cy = s.top + s.height / 2;
+    const k = Math.max(vw / s.width, vh / s.height) * 1.18;
+    const from = `translate(${vw / 2 - cx}px, ${vh / 2 - cy}px) scale(${k})`;
+    wrap.style.transformOrigin = `${cx - w.left}px ${cy - w.top}px`;
+    wrap.style.transform = from;
+    let anim: Animation | null = null;
+    const off = onReveal(() => {
+      off();
+      anim = wrap.animate(
+        [
+          { transform: from, filter: 'blur(6px) brightness(1.6)' },
+          { transform: from, filter: 'blur(2px) brightness(1.2)', offset: 0.12 },
+          { transform: 'none', filter: 'none' },
+        ],
+        { duration: ARRIVE_MS, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' },
+      );
+      wrap.style.transform = '';
+      anim.finished
+        .then(() => {
+          anim?.cancel();
+          wrap.style.transformOrigin = '';
+        })
+        .catch(() => {});
+    });
+    return () => {
+      off();
+      anim?.cancel();
+      wrap.style.transform = '';
+      wrap.style.transformOrigin = '';
+    };
   }, []);
 
   useEffect(() => {

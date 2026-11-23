@@ -48,7 +48,13 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       className={`${GeistPixelSquare.variable} ${GeistSans.variable} ${GeistMono.variable} ${fredoka.variable} ${doto.variable} ${chakra.variable} ${serif.variable}`}
       style={tvStyle}
     >
-      <body>
+      <body suppressHydrationWarning>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "if(location.pathname==='/tv'||location.pathname==='/tv/')document.body.classList.add('tv-mode')",
+          }}
+        />
         <Shell>{children}</Shell>
       </body>
     </html>

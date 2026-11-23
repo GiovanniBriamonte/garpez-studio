@@ -1,64 +1,121 @@
 'use client';
 
-import { createContext, useContext, useLayoutEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { playChannelWipe } from '../src/channel-wipe';
+import { createGlitchOverlay } from '../src/transition/glitch-overlay';
+import { createPixelWave } from '../src/transition/pixel-wave';
+import { freezePage } from '../src/transition/freeze';
+import { reveal, setArrival } from '../src/transition/store';
 
-const ChannelNav = createContext<(href: string) => void>(() => {});
+type NavOptions = { from?: 'dive' };
+const ChannelNav = createContext<(href: string, options?: NavOptions) => void>(() => {});
 
 export function useChannelNav() {
   return useContext(ChannelNav);
 }
 
+/* plain links (logo, privacy, back from /tv): 'wave' = pixel wave, 'glitch' = static tear */
+const PLAIN_NAV: 'wave' | 'glitch' = 'wave';
+/* glitch timings */
+const COVER_MS = 170;
+const RELEASE_MS = 420;
+/* pixel wave: one pass across the screen */
+const WAVE_MS = 1000;
+/* after the dive: longer tear so the /tv zoom-out can be seen through it */
+const DIVE_RELEASE_MS = 620;
+/* never stay covered longer than this if the route is slow */
+const SAFETY_MS = 2000;
+
+type Pending = { href: string; kind: 'dive' | 'wave' | 'glitch'; safety: number };
+
 export default function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wipeRef = useRef<ReturnType<typeof playChannelWipe> | null>(null);
-  const pendingRef = useRef<string | null>(null);
-  const seenPath = useRef<string | null>(null);
+  const waveCanvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<ReturnType<typeof createGlitchOverlay> | null>(null);
+  const waveRef = useRef<ReturnType<typeof createPixelWave> | null>(null);
+  const pendingRef = useRef<Pending | null>(null);
 
-  const go = (href: string) => {
-    if (href === pathname || wipeRef.current) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) {
-      router.push(href);
-      return;
-    }
+  useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) {
+    const waveCanvas = waveCanvasRef.current;
+    if (!canvas || !waveCanvas) return;
+    const overlay = createGlitchOverlay(canvas);
+    const wave = createPixelWave(waveCanvas);
+    overlayRef.current = overlay;
+    waveRef.current = wave;
+    return () => {
+      overlay.destroy();
+      wave.destroy();
+      overlayRef.current = null;
+      waveRef.current = null;
+    };
+  }, []);
+
+  const open = () => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    window.clearTimeout(pending.safety);
+    /* the wave clears its own pending state when the pass ends */
+    if (pending.kind === 'wave') return;
+    pendingRef.current = null;
+    const { kind } = pending;
+    /* let the new page paint once under the cover, then open it */
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const overlay = overlayRef.current;
+        if (!overlay) return;
+        const ms = kind === 'dive' ? DIVE_RELEASE_MS : RELEASE_MS;
+        document.body.classList.remove('is-diving');
+        reveal(ms);
+        overlay.release(ms);
+      }),
+    );
+  };
+
+  const go = (href: string, options: NavOptions = {}) => {
+    if (href === pathname || pendingRef.current) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const overlay = overlayRef.current;
+    const wave = waveRef.current;
+    if (reduce || !overlay || !wave) {
       router.push(href);
       return;
     }
-    pendingRef.current = href;
-    document.body.classList.add('is-channeling');
-    const wipe = playChannelWipe(canvas, {
-      onCovered: () => router.push(href),
-    });
-    wipeRef.current = wipe;
-    wipe.finally(() => {
-      wipeRef.current = null;
-      pendingRef.current = null;
-      canvas.classList.remove('is-on');
-      document.body.classList.remove('is-channeling');
-    });
+    const kind = options.from === 'dive' ? 'dive' : PLAIN_NAV;
+    const safety = window.setTimeout(open, SAFETY_MS);
+    pendingRef.current = { href, kind, safety };
+    if (kind === 'dive') {
+      setArrival('dive');
+      overlay.hold();
+      router.push(href);
+    } else if (kind === 'wave') {
+      /* freeze the old page, load the new one underneath, let the band cut through.
+         Going home sweeps back the other way. */
+      let ghost: ReturnType<typeof freezePage> = null;
+      try {
+        ghost = freezePage();
+      } catch {
+        ghost = null;
+      }
+      router.push(href);
+      wave.sweep(href === '/' ? -1 : 1, WAVE_MS, ghost).then(() => {
+        const p = pendingRef.current;
+        if (p && p.kind === 'wave') {
+          window.clearTimeout(p.safety);
+          pendingRef.current = null;
+        }
+      });
+    } else {
+      overlay.cover(COVER_MS).then(() => router.push(href));
+    }
   };
 
   useLayoutEffect(() => {
-    if (seenPath.current === null) {
-      seenPath.current = pathname;
-      return;
-    }
-    if (seenPath.current === pathname) return;
-    seenPath.current = pathname;
-    if (pendingRef.current) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const canvas = canvasRef.current;
-    if (reduce || !canvas || wipeRef.current) return;
-    document.body.classList.add('is-channeling');
-    const stop = window.setTimeout(() => document.body.classList.remove('is-channeling'), 420);
-    return () => window.clearTimeout(stop);
+    const pending = pendingRef.current;
+    if (pending && pathname === pending.href) open();
   }, [pathname]);
 
   const follow = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -92,6 +149,7 @@ export default function Shell({ children }: { children: ReactNode }) {
           Privacy
         </a>
       </footer>
+      <canvas ref={waveCanvasRef} className="pixel-wave" aria-hidden="true" />
       <canvas ref={canvasRef} className="channel-wipe" aria-hidden="true" />
     </ChannelNav.Provider>
   );

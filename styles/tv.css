@@ -31,6 +31,12 @@ body.tv-mode {
     --w: calc(var(--fit) * 0.84);
   }
 }
+/* 1400 and up: 20% larger than the stepped-back set, still inside the frame */
+@media (min-width: 1400px) and (min-height: 680px) {
+  .wrap {
+    --w: calc(var(--fit) * 0.84 * 1.2);
+  }
+}
 .backdrop,
 .stage {
   position: absolute;
