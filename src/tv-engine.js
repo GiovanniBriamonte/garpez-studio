@@ -17,13 +17,14 @@ function family(variable, fallback) {
 /**
  * Starts the television inside `root`; `videos` ({ name, src }) become the first channels,
  * `models` lists the character files found in /public/about for the ABOUT channel.
+ * `options.power` starts the set already on, tuned to channel 1.
  * Returns a function that stops it.
  *
  * A channel is { name, draw(c, now) } plus, optionally: `video`, `amb`, `info`, and for
  * playable channels `enter()`, `leave()`, `key(k)` and `pointer(type, x, y, kind)`.
  * Channels always draw in a W x H space; one that sets `scale` gets that many times the definition.
  */
-export function mountTv(root, videos = [], models = []) {
+export function mountTv(root, videos = [], models = [], options = {}) {
   const $ = (id) => root.querySelector("#" + id);
   const tube = $("tube"),
     infoEl = $("info"),
@@ -61,7 +62,7 @@ export function mountTv(root, videos = [], models = []) {
     ctx.setTransform(S, 0, 0, S, 0, 0);
     sx.setTransform(S, 0, 0, S, 0, 0);
   }
-  let power = false,
+  let power = !!options.power,
     ch = 0,
     raf = 0,
     muted = false,
@@ -771,6 +772,15 @@ export function mountTv(root, videos = [], models = []) {
     document.fonts.load(`900 40px "${first(F_DOT)}"`);
     for (const style of ["500", "700", "italic 500", "italic 700"])
       document.fonts.load(`${style} 20px "${first(F_UI)}"`);
+  }
+
+  /* Home opens the set already tuned to channel 1, picture up, no power-on sweep. */
+  if (power) {
+    glowCol = [255, 255, 255];
+    syncVideos();
+    setAmbience(CH[ch].amb || null);
+    osdUntil = performance.now() + 2800;
+    frame();
   }
 
   return () => {

@@ -40,6 +40,24 @@ body {
   width: auto;
 }
 
+.site-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.site-oslo {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.site-oslo[data-ready='false'] {
+  visibility: hidden;
+}
+
 .site-talk {
   display: inline-flex;
   align-items: center;
@@ -308,6 +326,14 @@ body.is-diving .site-footer {
 
   .site-logo img {
     height: 26px;
+  }
+
+  .site-actions {
+    gap: 12px;
+  }
+
+  .site-oslo {
+    font-size: 13px;
   }
 
   .privacy-col {

@@ -1,9 +1,11 @@
 'use client';
 
 import { Fragment, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { mountLandingTv } from '../src/landing/tv-stage';
 import { createAudio } from '../src/audio';
+import { EyesCursor } from '@/src/components/cursors/eyes';
 import { useChannelNav } from './shell';
 
 /* breaks match the wide layout; below 1400px they collapse back into one paragraph */
@@ -25,6 +27,7 @@ export default function Landing() {
   const goRef = useRef(go);
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
+  const [cursorReady, setCursorReady] = useState(false);
 
   useEffect(() => {
     goRef.current = go;
@@ -36,6 +39,8 @@ export default function Landing() {
     /* Next keeps the page alive between visits: start clean every time we come back */
     busy.current = false;
     setLeaving(false);
+    setCursorReady(true);
+    stage.removeAttribute('data-eyes-target');
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     router.prefetch('/tv');
     const sound = createAudio(() => false);
@@ -44,6 +49,7 @@ export default function Landing() {
     const enter = async () => {
       if (busy.current) return;
       busy.current = true;
+      stage.removeAttribute('data-eyes-target');
       if (reduce) {
         goRef.current('/tv');
         return;
@@ -58,9 +64,18 @@ export default function Landing() {
       goRef.current('/tv', { from: ok ? 'dive' : undefined });
     };
 
-    const tv = mountLandingTv(stage, { reduce, onActivate: enter });
+    const tv = mountLandingTv(stage, {
+      reduce,
+      onActivate: enter,
+      onHot: (next) => {
+        if (!alive || busy.current) return;
+        if (next) stage.setAttribute('data-eyes-target', '');
+        else stage.removeAttribute('data-eyes-target');
+      },
+    });
     return () => {
       alive = false;
+      stage.removeAttribute('data-eyes-target');
       tv.destroy();
       sound.close();
       document.body.classList.remove('is-diving');
@@ -69,25 +84,35 @@ export default function Landing() {
   }, [router]);
 
   return (
-    <div className={leaving ? 'landing is-leaving' : 'landing'}>
-      <h1 className="landing-statement">
-        <span className="landing-copy">
-          {LINES.map((line, index) => (
-            <Fragment key={line}>
-              {index > 0 && <br className="landing-break" />}
-              {line}
-              {index < LINES.length - 1 ? ' ' : ''}
-            </Fragment>
-          ))}
-        </span>
-      </h1>
-      <div
-        ref={stageRef}
-        className="landing-stage"
-        role="link"
-        tabIndex={0}
-        aria-label="Open garpez.tv"
-      />
-    </div>
+    <>
+      <div className={leaving ? 'landing is-leaving' : 'landing'}>
+        <h1 className="landing-statement">
+          <span className="landing-copy">
+            {LINES.map((line, index) => (
+              <Fragment key={line}>
+                {index > 0 && <br className="landing-break" />}
+                {line}
+                {index < LINES.length - 1 ? ' ' : ''}
+              </Fragment>
+            ))}
+          </span>
+        </h1>
+        <div
+          ref={stageRef}
+          className="landing-stage"
+          role="link"
+          tabIndex={0}
+          aria-label="Open garpez.tv"
+        />
+      </div>
+      {cursorReady &&
+        createPortal(
+          <EyesCursor
+            label="Watch some TV"
+            typeface="var(--font-geist-sans), sans-serif"
+          />,
+          document.body,
+        )}
+    </>
   );
 }

@@ -7,7 +7,7 @@
 const TALL = 1.8; // every character is scaled to this height
 const GAP = 1.22; // distance of each character from the centre
 const STEP = 0.06; // turntable height
-const RADIUS = 0.5; // turntable radius
+const RADIUS = 0.86; // turntable radius
 const ROOM = 7.2; // how far the walls sit from the centre
 const SHINE = 0.38; // how much of the reflection the floor lets through
 const TAU = Math.PI * 2;

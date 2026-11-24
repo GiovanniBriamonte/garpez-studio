@@ -1,12 +1,51 @@
 'use client';
 
-import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { createGlitchOverlay } from '../src/transition/glitch-overlay';
 import { createPixelWave } from '../src/transition/pixel-wave';
 import { freezePage } from '../src/transition/freeze';
-import { reveal, setArrival } from '../src/transition/store';
+import { armTvOn, reveal, setArrival } from '../src/transition/store';
+
+function osloTime(date: Date) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Oslo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
+}
+
+function OsloClock() {
+  const [time, setTime] = useState<string | null>(null);
+
+  useEffect(() => {
+    let timer = 0;
+    const arm = () => {
+      window.clearTimeout(timer);
+      const now = new Date();
+      setTime(osloTime(now));
+      const wait = (60 - now.getSeconds()) * 1000 - now.getMilliseconds() + 50;
+      timer = window.setTimeout(arm, Math.max(wait, 1000));
+    };
+    arm();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') arm();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
+  return (
+    <span className="site-oslo" data-ready={time ? 'true' : 'false'}>
+      OSLO {time ?? '00:00'}
+    </span>
+  );
+}
 
 type NavOptions = { from?: 'dive' };
 const ChannelNav = createContext<(href: string, options?: NavOptions) => void>(() => {});
@@ -77,6 +116,8 @@ export default function Shell({ children }: { children: ReactNode }) {
 
   const go = (href: string, options: NavOptions = {}) => {
     if (href === pathname || pendingRef.current) return;
+    /* the click on the home set: arrive with the television already on channel 1 */
+    if (href === '/tv' && pathname === '/') armTvOn();
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const overlay = overlayRef.current;
     const wave = waveRef.current;
@@ -130,9 +171,12 @@ export default function Shell({ children }: { children: ReactNode }) {
         <a className="site-logo" href="/" onClick={(event) => follow(event, '/')}>
           <img src="/system/logo.svg" alt="garpez" />
         </a>
-        <a className="site-talk" href="mailto:ciao@garpez.studio">
-          Talk
-        </a>
+        <div className="site-actions">
+          <OsloClock />
+          <a className="site-talk" href="mailto:ciao@garpez.studio">
+            Talk
+          </a>
+        </div>
       </header>
       <div className="site-frame">{children}</div>
       <footer className="site-footer">

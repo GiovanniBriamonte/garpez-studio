@@ -1,0 +1,38 @@
+/* the arrow stays visible — the eyes are a companion that trails it */
+
+/* Every inner size is derived from --h, so changing the button
+   height rescales the eyes, the type and the padding together. */
+.eyes-pill{
+  --h: 36px;
+  position: fixed; top: 0; left: 0; z-index: 50;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-sizing: border-box;
+  min-width: 128px; height: var(--h);
+  padding: 0 15.8px; gap: 7.9px;
+  border-radius: 18px;
+  background: #000000;
+  color: #FFFFFF;
+  font: 500 13px/1 var(--font-geist-sans), sans-serif; letter-spacing: -.02em;
+  white-space: nowrap; pointer-events: none;
+  opacity: 0; will-change: transform;
+  transition: opacity 160ms cubic-bezier(.25,.1,.25,1);
+}
+.eyes-pill.is-on{ opacity: 1; }
+
+.eyes{ display: inline-flex; align-items: center; flex: none; }
+
+/* NO transition on .eye — the lid is written every frame and a CSS
+   transition would fight those writes and mush the blink away. */
+.eye{
+  position: relative; flex: none; overflow: hidden;
+  width: 15.1px; height: 15.1px;
+  border-radius: 50%; will-change: transform;
+}
+.eye:nth-child(1){ background: #FFFFFF; }
+.eye:nth-child(2){ background: #FFFFFF; margin-left: 1px; }
+.eye i{
+  position: absolute; border-radius: 50%; background: #000000;
+  width: 6.3px; height: 6.3px;
+  left: 4.4px; top: 4.4px;
+  will-change: transform;
+}

@@ -6,10 +6,25 @@
  */
 
 let arrival = null;
+/* set when leaving home for /tv; the set reads it once it has actually started */
+let tvOn = false;
 const listeners = new Set();
 
 export function setArrival(kind) {
   arrival = kind;
+}
+
+/** Home → /tv should open with the set already on channel 1. */
+export function armTvOn() {
+  tvOn = true;
+}
+
+export function peekTvOn() {
+  return tvOn;
+}
+
+export function clearTvOn() {
+  tvOn = false;
 }
 
 /** Returns the pending arrival kind once, then clears it. */

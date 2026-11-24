@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { mountTv } from '../src/tv-engine';
 import geo from '../src/tv-geometry.json';
 import type { VideoChannel } from './channels';
-import { onReveal, takeArrival } from '../src/transition/store';
+import { clearTvOn, onReveal, peekTvOn, takeArrival } from '../src/transition/store';
 
 /* set to false to arrive on /tv without the zoom-out from the screen */
 const ARRIVE_ZOOM = true;
@@ -68,7 +68,16 @@ export default function Television({ videos, models }: { videos: VideoChannel[];
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    return mountTv(root, videos, models);
+    const power = peekTvOn();
+    const stop = mountTv(root, videos, models, { power });
+    /* keep the flag across a strict-mode remount; drop it once this visit has started */
+    const clear = window.setTimeout(() => {
+      if (power) clearTvOn();
+    }, 0);
+    return () => {
+      window.clearTimeout(clear);
+      stop();
+    };
   }, [videos, models]);
 
   return (
@@ -83,8 +92,11 @@ export default function Television({ videos, models }: { videos: VideoChannel[];
               <canvas id="c" width={400} height={geo.canvasHeight} aria-label="TV screen" />
               <canvas id="gl" aria-hidden="true" />
               <div className="infoch" id="info">
-                <p>Two Italians in Oslo, making things we wish existed. We turn ideas into brands, websites and digital experiences for startups and people building something new. We think, design, code, animate, experiment, and obsess over the little details. Small studio. Big curiosity.</p>
-                <div>
+                <div className="infoch-copy">
+                  <h2>Garpez:</h2>
+                  <p>Two Italians in Oslo, making things we wish existed. We turn ideas into brands, websites and digital experiences for startups and people building something new. We think, design, code, animate, experiment, and obsess over the little details. Small studio. Big curiosity.</p>
+                </div>
+                <div className="infoch-links">
                   <a href="mailto:ciao@garpez.studio">Email</a>
                   <a href="https://google.com" target="_blank" rel="noopener">Insta</a>
                   <a href="https://www.linkedin.com/company/garpezstudio/" target="_blank" rel="noopener">LinkedIn</a>

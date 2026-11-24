@@ -155,10 +155,10 @@ const inOutQuart = (t) => (t < 0.5 ? 8 * t ** 4 : 1 - (-2 * t + 2) ** 4 / 2);
  * channel change on the screen and a glitch pass on top. It resolves `true`
  * once the viewport is full of static (or `false` if the set never loaded).
  * @param {HTMLElement} stage
- * @param {{ reduce?: boolean, onActivate?: () => void }} [options]
+ * @param {{ reduce?: boolean, onActivate?: () => void, onHot?: (hot: boolean) => void }} [options]
  * @returns {{ destroy: () => void, dive: (ms?: number) => Promise<boolean> }}
  */
-export function mountLandingTv(stage, { reduce = false, onActivate } = {}) {
+export function mountLandingTv(stage, { reduce = false, onActivate, onHot } = {}) {
   let disposed = false;
   let raf = 0;
   let failed = false;
@@ -379,14 +379,22 @@ export function mountLandingTv(stage, { reduce = false, onActivate } = {}) {
       return ray.intersectObject(tv, true).length > 0;
     };
 
+    let hot = false;
+    const setHot = (next) => {
+      if (next === hot) return;
+      hot = next;
+      stage.classList.toggle('is-hot', hot);
+      onHot?.(hot);
+    };
+
     on(stage, 'click', (e) => {
       if (failed || hit(e)) activate();
     });
     on(stage, 'pointermove', (e) => {
       if (e.pointerType === 'touch') return;
-      stage.classList.toggle('is-hot', !failed && hit(e));
+      setHot(!failed && hit(e));
     });
-    on(stage, 'pointerleave', () => stage.classList.remove('is-hot'));
+    on(stage, 'pointerleave', () => setHot(false));
 
     let tx = 0;
     let ty = 0;

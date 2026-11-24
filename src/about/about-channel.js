@@ -1,5 +1,5 @@
 /*
- * CH 04, ABOUT: a character select you can play.
+ * CH 04, PS2: a character select you can play.
  * loading -> title -> select -> chosen -> talk, all drawn into the television's own canvas,
  * so it gets the channel glitch, the scanlines and the bend of the glass for free.
  * Everything here is laid out in the W x H space of the TV; the engine supplies the extra definition.
@@ -609,7 +609,7 @@ export function createAbout({ W, H, scale, sprite, fonts, sfx, reduce, models })
   }
 
   return {
-    name: "ABOUT",
+    name: "PS2",
     scale,
     draw,
     enter() {
